@@ -27,6 +27,8 @@ import { LoadingOverlay } from "@/components/bingo/loading-overlay";
 import { WinModal } from "@/components/bingo/win-modal";
 import { SplashScreen } from "@/components/bingo/splash-screen";
 import { PhoneShareScreen } from "@/components/bingo/phone-share-screen";
+import { TelegramRequiredScreen } from "@/components/bingo/telegram-required-screen";
+import { useTelegramGate } from "@/hooks/use-telegram-gate";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 
 function hasDevPhoneBypass() {
@@ -53,6 +55,7 @@ function BingoAppInner() {
   const { t } = useI18n();
   const game = useBingoGame();
   const tg = useTelegramUser();
+  const gate = useTelegramGate();
   const ensure = useServerFn(ensurePlayer);
   const fetchWallet = useServerFn(getWallet);
   const recordGame = useServerFn(finishGame);
@@ -208,8 +211,13 @@ function BingoAppInner() {
   };
 
   // Splash screen (always shown briefly on app load)
-  if (!splashDone) {
+  if (!splashDone || gate.state === "checking") {
     return <SplashScreen onDone={() => setSplashDone(true)} />;
+  }
+
+  // Only allow the game inside a real Telegram Mini App session.
+  if (gate.state === "out") {
+    return <TelegramRequiredScreen reason={gate.reason} />;
   }
 
   // Ask for phone number once, before entering the app. Only meaningful with a

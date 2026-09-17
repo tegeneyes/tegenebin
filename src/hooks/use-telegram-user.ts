@@ -28,7 +28,7 @@ declare global {
 
 // True only on local dev / preview hosts. Production must NEVER fabricate an id,
 // because every server-side record is keyed by the real Telegram id.
-function isDevHost(): boolean {
+export function isDevHost(): boolean {
   if (import.meta.env.DEV) return true
   if (typeof window === "undefined") return false
   const host = window.location.hostname

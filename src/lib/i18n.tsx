@@ -66,6 +66,12 @@ const en: Dict = {
   "phone.read_fail": "Telegram shared it, but we couldn't read the number yet. Please tap Share Contact again.",
   "phone.save_fail": "Could not save phone number",
 
+  // Telegram-only gate
+  "block.title": "Open from Telegram",
+  "block.desc": "This game only works inside the Telegram app. Open it from Telegram and share your phone number to continue.",
+  "block.open": "Open in Telegram",
+  "block.hint": "Only official access through Telegram is allowed.",
+
   // Profile
   "profile.verified": "Verified Player",
   "profile.main_wallet": "Main Wallet",
@@ -231,6 +237,12 @@ const am: Dict = {
   "phone.not_avail": "የቴሌግራም ኮንታክት መጋራት በቴሌግራም ሚኒ መተግበሪያ ውስጥ ብቻ ይሰራል።",
   "phone.read_fail": "ቴሌግራም አጋርቷል ግን ቁጥሩን ማንበብ አልቻልንም። እባክዎ Share Contact እንደገና ይንኩ።",
   "phone.save_fail": "ስልክ ቁጥር ማስቀመጥ አልተቻለም",
+
+  // Telegram-only gate
+  "block.title": "ከቴሌግራም ይክፈቱ",
+  "block.desc": "ይህ ጨዋታ በቴሌግራም መተግበሪያ ውስጥ ብቻ ይሠራል። ለመቀጠል ከቴሌግራም ይክፈቱ እና ስልክ ቁጥርዎን ያጋሩ።",
+  "block.open": "በቴሌግራም ክፈት",
+  "block.hint": "የተፈቀደው በቴሌግራም ብቻ ነው።",
 
   "profile.verified": "የተረጋገጠ ተጫዋች",
   "profile.main_wallet": "ዋና ቦርሳ",
