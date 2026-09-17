@@ -355,10 +355,7 @@ function detectInitial(): Lang {
     const saved = window.localStorage.getItem(STORAGE_KEY) as Lang | null
     if (saved === "en" || saved === "am") return saved
   } catch {}
-  try {
-    const tg = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code
-    if (tg && tg.toLowerCase().startsWith("en")) return "en"
-  } catch {}
+  // Amharic is the default; English only applies if the user picked it.
   return "am"
 }
 
@@ -393,10 +390,10 @@ export function useI18n(): Ctx {
   if (!ctx) {
     // Safe fallback so components don't crash if rendered outside provider
     return {
-      lang: "en",
+      lang: "am",
       setLang: () => {},
       t: (k, vars) => {
-        let s = en[k] ?? k
+        let s = dicts.am[k] ?? en[k] ?? k
         if (vars) for (const [kk, v] of Object.entries(vars)) s = s.replaceAll(`{${kk}}`, String(v))
         return s
       },
