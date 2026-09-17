@@ -173,7 +173,8 @@ export const adminListPlayers = createServerFn({ method: "POST" })
     return rows ?? []
   })
 
-export const adminPlayerGames = createServerFn({ method: "POST" })
+// Full per-player breakdown: balances, win/loss, bets, cartela picks and deposits.
+export const adminPlayerDetail = createServerFn({ method: "POST" })
   .inputValidator((d: { admin_id: string | number; telegram_id: string | number }) => ({
     admin_id: TelegramIdSchema.parse(d.admin_id),
     telegram_id: TelegramIdSchema.parse(d.telegram_id),
@@ -181,30 +182,103 @@ export const adminPlayerGames = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
-    const { data: rows, error } = await supabaseAdmin
-      .from("game_results")
-      .select("id, cartela_id, stake, is_winner, payout, created_at, games(short_code, prize_pool, player_count)")
-      .eq("telegram_id", data.telegram_id)
-      .order("created_at", { ascending: false })
-      .limit(100)
-    if (error) throw new Error(error.message)
-    const list = (rows ?? []).map((r: any) => ({
-      id: r.id as string,
-      game_code: (r.games?.short_code as string | null) ?? null,
-      cartela_id: Number(r.cartela_id),
-      stake: Number(r.stake),
-      is_winner: !!r.is_winner,
-      payout: Number(r.payout || 0),
-      prize_pool: Number(r.games?.prize_pool || 0),
-      player_count: Number(r.games?.player_count || 0),
-      created_at: r.created_at as string,
-    }))
-    const games = list.length
-    const wins = list.filter(g => g.is_winner).length
-    const staked = list.reduce((s, g) => s + g.stake, 0)
-    const won = list.reduce((s, g) => s + g.payout, 0)
-    return { games: list, summary: { games, wins, losses: games - wins, staked, won, net: won - staked } }
+
+    const [playerRes, txRes, gameRes] = await Promise.all([
+      supabaseAdmin.from("players").select("*").eq("telegram_id", data.telegram_id).maybeSingle(),
+      supabaseAdmin
+        .from("transactions")
+        .select("id, type, amount, status, provider, reference, phone_number, cbe_account_name, cbe_account_number, proof_text, admin_note, created_at")
+        .eq("telegram_id", data.telegram_id)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from("game_results")
+        .select("id, cartela_id, stake, is_winner, payout, created_at, games(short_code, prize_pool, player_count, called_numbers)")
+        .eq("telegram_id", data.telegram_id)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    ])
+
+    if (playerRes.error) throw new Error(playerRes.error.message)
+    if (txRes.error) throw new Error(txRes.error.message)
+    if (gameRes.error) throw new Error(gameRes.error.message)
+
+    const txs = (txRes.data ?? []) as PlayerTx[]
+
+    const games: PlayerGameRow[] = (gameRes.data ?? []).map((raw) => {
+      const r = raw as unknown as {
+        id: string; cartela_id: number; stake: number; is_winner: boolean; payout: number; created_at: string
+        games: { short_code: string | null; prize_pool: number | null; player_count: number | null; called_numbers: number[] | null } | null
+      }
+      return {
+        id: r.id,
+        game_code: r.games?.short_code ?? null,
+        cartela_id: Number(r.cartela_id),
+        stake: Number(r.stake),
+        is_winner: !!r.is_winner,
+        payout: Number(r.payout || 0),
+        prize_pool: Number(r.games?.prize_pool || 0),
+        player_count: Number(r.games?.player_count || 0),
+        called_count: Array.isArray(r.games?.called_numbers) ? r.games.called_numbers.length : 0,
+        called_numbers: Array.isArray(r.games?.called_numbers) ? r.games.called_numbers : [],
+        created_at: r.created_at,
+      }
+    })
+
+    const wins = games.filter(g => g.is_winner).length
+    const staked = games.reduce((s, g) => s + g.stake, 0)
+    const won = games.reduce((s, g) => s + g.payout, 0)
+
+    const sumTx = (type: string, status: string) =>
+      txs.filter(t => t.type === type && t.status === status).reduce((s, t) => s + Number(t.amount || 0), 0)
+
+    // Cartela breakdown — which cartela numbers the player picks and how they perform.
+    const cartMap = new Map<number, PlayerCartelaRow>()
+    for (const g of games) {
+      const c = cartMap.get(g.cartela_id) ?? { cartela_id: g.cartela_id, plays: 0, wins: 0, staked: 0, won: 0 }
+      c.plays += 1
+      c.staked += g.stake
+      c.won += g.payout
+      if (g.is_winner) c.wins += 1
+      cartMap.set(g.cartela_id, c)
+    }
+    const cartelas = Array.from(cartMap.values()).sort((a, b) => b.plays - a.plays)
+
+    return {
+      player: playerRes.data ?? null,
+      summary: {
+        games: games.length,
+        wins,
+        losses: games.length - wins,
+        staked,
+        won,
+        net: won - staked,
+        deposited: sumTx("deposit", "approved"),
+        deposit_pending: sumTx("deposit", "pending"),
+        withdrawn: sumTx("withdrawal", "approved"),
+        withdrawal_pending: sumTx("withdrawal", "pending"),
+      },
+      transactions: txs,
+      games,
+      cartelas,
+    }
   })
+
+type PlayerTx = {
+  id: string; type: string; amount: number; status: string; provider: string | null;
+  reference: string | null; phone_number: string | null; cbe_account_name: string | null;
+  cbe_account_number: string | null; proof_text: string | null; admin_note: string | null; created_at: string
+}
+
+export type PlayerGameRow = {
+  id: string; game_code: string | null; cartela_id: number; stake: number; is_winner: boolean;
+  payout: number; prize_pool: number; player_count: number; called_count: number;
+  called_numbers: number[]; created_at: string
+}
+
+export type PlayerCartelaRow = {
+  cartela_id: number; plays: number; wins: number; staked: number; won: number
+}
 
 export const adminSetBanned = createServerFn({ method: "POST" })
   .inputValidator((d: { admin_id: string | number; telegram_id: string | number; banned: boolean; reason?: string }) => ({

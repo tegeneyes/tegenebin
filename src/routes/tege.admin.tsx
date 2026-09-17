@@ -10,8 +10,9 @@ import {
 } from "@/lib/wallet.functions"
 import {
   adminListAnnouncements, adminSetAnnouncement, adminClearAnnouncement,
-  adminBonusDrop, adminListBonusDrops, adminListPlayers, adminSetBanned, adminPlayerGames,
+  adminBonusDrop, adminListBonusDrops, adminListPlayers, adminSetBanned, adminPlayerDetail,
   adminListGames,
+  type PlayerGameRow, type PlayerCartelaRow,
 } from "@/lib/admin-tools.functions"
 import { parseSms } from "@/lib/sms-parser"
 
@@ -489,7 +490,7 @@ function UsersPanel({ adminId }: { adminId: number }) {
                     : <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-bingo-green/20 text-bingo-green border border-bingo-green/40">Active</span>}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">
-                  <button onClick={() => setGamesFor(r)} className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-bingo-accent/20 text-bingo-accent border-bingo-accent/40 hover:bg-bingo-accent/30 mr-1.5">Games</button>
+                  <button onClick={() => setGamesFor(r)} className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-bingo-accent/20 text-bingo-accent border-bingo-accent/40 hover:bg-bingo-accent/30 mr-1.5">Details</button>
                   <button
                     onClick={() => handleBanToggle(r)}
                     disabled={actingId === r.telegram_id}
@@ -504,60 +505,103 @@ function UsersPanel({ adminId }: { adminId: number }) {
           </tbody>
         </table>
       </div>
-      {gamesFor && <PlayerGamesModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} />}
+      {gamesFor && <PlayerDetailModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} />}
     </div>
   )
 }
 
-type PlayerGame = {
-  id: string; game_code: string | null; cartela_id: number; stake: number; is_winner: boolean;
-  payout: number; prize_pool: number; player_count: number; created_at: string;
+type PlayerTx = {
+  id: string; type: string; amount: number; status: string; provider: string | null;
+  reference: string | null; phone_number: string | null; cbe_account_name: string | null;
+  cbe_account_number: string | null; proof_text: string | null; admin_note: string | null; created_at: string;
 }
 
-function PlayerGamesModal({ adminId, player, onClose }: { adminId: number; player: PlayerRow; onClose: () => void }) {
-  const fetchGames = useServerFn(adminPlayerGames)
-  const [data, setData] = useState<{ games: PlayerGame[]; summary: { games: number; wins: number; losses: number; staked: number; won: number; net: number } } | null>(null)
+type PlayerDetail = {
+  player: PlayerRow | null
+  summary: {
+    games: number; wins: number; losses: number; staked: number; won: number; net: number;
+    deposited: number; deposit_pending: number; withdrawn: number; withdrawal_pending: number;
+  }
+  transactions: PlayerTx[]
+  games: PlayerGameRow[]
+  cartelas: PlayerCartelaRow[]
+}
+
+function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; player: PlayerRow; onClose: () => void }) {
+  const fetchDetail = useServerFn(adminPlayerDetail)
+  const [data, setData] = useState<PlayerDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [view, setView] = useState<"overview" | "games" | "cartelas" | "tx">("overview")
 
   useEffect(() => {
-    fetchGames({ data: { admin_id: adminId, telegram_id: player.telegram_id } })
-      .then(r => setData(r as any))
+    fetchDetail({ data: { admin_id: adminId, telegram_id: player.telegram_id } })
+      .then(r => setData(r as PlayerDetail))
       .catch(e => setErr((e as Error).message))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.telegram_id])
 
   const label = player.username ? `@${player.username}` : (player.first_name || String(player.telegram_id))
+  const s = data?.summary
+
+  const Stat = ({ k, v, c = "text-white" }: { k: string; v: string | number; c?: string }) => (
+    <div className="rounded-lg bg-white/5 py-2 px-1">
+      <p className="text-gray-500 uppercase tracking-wider text-[9px]">{k}</p>
+      <p className={`font-mono font-bold ${c}`}>{v}</p>
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-2xl max-h-[85vh] flex flex-col bg-bingo-deep-purple border border-bingo-accent/40 rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-3xl max-h-[88vh] flex flex-col bg-bingo-deep-purple border border-bingo-accent/40 rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div>
-            <h3 className="font-display font-extrabold text-white">Games · {label}</h3>
-            <p className="text-[11px] text-gray-400 font-mono">{player.telegram_id}{player.phone_number ? ` · ${player.phone_number}` : ""}</p>
+            <h3 className="font-display font-extrabold text-white">{label}</h3>
+            <p className="text-[11px] text-gray-400 font-mono">
+              {player.telegram_id}{player.phone_number ? ` · ${player.phone_number}` : ""}{player.banned ? " · BANNED" : ""}
+            </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none px-2">×</button>
         </div>
+
+        <div className="flex gap-2 px-4 pt-3 flex-wrap">
+          {(["overview", "games", "cartelas", "tx"] as const).map(v => (
+            <button key={v} onClick={() => setView(v)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase ${view === v ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5 text-gray-300"}`}>
+              {v === "tx" ? "Deposits" : v}
+            </button>
+          ))}
+        </div>
+
         {err && <div className="m-4 bg-red-500/20 border border-red-500/40 rounded p-2 text-sm">{err}</div>}
         {!data && !err && <p className="p-6 text-gray-400 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading…</p>}
-        {data && (
-          <>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 p-4 text-center text-[11px]">
-              {[
-                ["Games", data.summary.games, "text-white"],
-                ["Won", data.summary.wins, "text-bingo-green"],
-                ["Lost", data.summary.losses, "text-red-300"],
-                ["Staked", data.summary.staked.toFixed(2), "text-white"],
-                ["Payouts", data.summary.won.toFixed(2), "text-bingo-gold"],
-                ["Net", `${data.summary.net >= 0 ? "+" : ""}${data.summary.net.toFixed(2)}`, data.summary.net >= 0 ? "text-bingo-green" : "text-red-300"],
-              ].map(([k, v, c]) => (
-                <div key={k as string} className="rounded-lg bg-white/5 py-2">
-                  <p className="text-gray-500 uppercase tracking-wider text-[9px]">{k}</p>
-                  <p className={`font-mono font-bold ${c}`}>{v}</p>
+
+        {data && s && (
+          <div className="flex-1 overflow-auto p-4 space-y-4">
+            {view === "overview" && (
+              <>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-center text-[11px]">
+                  <Stat k="Main balance" v={Number(data.player?.balance ?? 0).toFixed(2)} c="text-bingo-green" />
+                  <Stat k="Bonus" v={Number(data.player?.bonus_balance ?? 0).toFixed(2)} c="text-bingo-gold" />
+                  <Stat k="Deposited" v={s.deposited.toFixed(2)} c="text-bingo-green" />
+                  <Stat k="Deposit pending" v={s.deposit_pending.toFixed(2)} c="text-yellow-400" />
+                  <Stat k="Withdrawn" v={s.withdrawn.toFixed(2)} c="text-bingo-accent" />
+                  <Stat k="Withdraw pending" v={s.withdrawal_pending.toFixed(2)} c="text-yellow-400" />
+                  <Stat k="Games" v={s.games} />
+                  <Stat k="Wins" v={s.wins} c="text-bingo-green" />
+                  <Stat k="Losses" v={s.losses} c="text-red-300" />
+                  <Stat k="Staked" v={s.staked.toFixed(2)} />
+                  <Stat k="Payouts" v={s.won.toFixed(2)} c="text-bingo-gold" />
+                  <Stat k="Net" v={`${s.net >= 0 ? "+" : ""}${s.net.toFixed(2)}`} c={s.net >= 0 ? "text-bingo-green" : "text-red-300"} />
                 </div>
-              ))}
-            </div>
-            <div className="overflow-auto px-4 pb-4">
+                <div className="text-[11px] text-gray-400 space-y-1">
+                  <p>Joined: <span className="text-gray-200">{new Date(player.created_at).toLocaleString()}</span></p>
+                  <p>Referred by: <span className="font-mono text-gray-200">{player.referred_by ?? "—"}</span> {player.referral_bonus_paid ? <span className="text-bingo-green">· bonus paid</span> : ""}</p>
+                  {player.banned && <p className="text-red-300">Banned: {player.banned_reason || "—"}</p>}
+                </div>
+              </>
+            )}
+
+            {view === "games" && (
               <table className="w-full text-[12px]">
                 <thead className="text-gray-400 uppercase text-[10px] tracking-wider">
                   <tr>
@@ -567,6 +611,7 @@ function PlayerGamesModal({ adminId, player, onClose }: { adminId: number; playe
                     <th className="text-center py-1.5">Result</th>
                     <th className="text-right py-1.5">Payout</th>
                     <th className="text-right py-1.5">Players</th>
+                    <th className="text-right py-1.5">Calls</th>
                     <th className="text-right py-1.5">Date</th>
                   </tr>
                 </thead>
@@ -583,14 +628,75 @@ function PlayerGamesModal({ adminId, player, onClose }: { adminId: number; playe
                       </td>
                       <td className="py-1.5 text-right font-mono text-bingo-gold">{g.payout > 0 ? g.payout.toFixed(2) : "—"}</td>
                       <td className="py-1.5 text-right font-mono text-gray-400">{g.player_count}</td>
+                      <td className="py-1.5 text-right font-mono text-gray-400">{g.called_count}</td>
                       <td className="py-1.5 text-right text-gray-400 whitespace-nowrap">{new Date(g.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
-                  {data.games.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-gray-500">No games played yet.</td></tr>}
+                  {data.games.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-gray-500">No games played yet.</td></tr>}
                 </tbody>
               </table>
-            </div>
-          </>
+            )}
+
+            {view === "cartelas" && (
+              <table className="w-full text-[12px]">
+                <thead className="text-gray-400 uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="text-left py-1.5">Cartela</th>
+                    <th className="text-right py-1.5">Plays</th>
+                    <th className="text-right py-1.5">Wins</th>
+                    <th className="text-right py-1.5">Staked</th>
+                    <th className="text-right py-1.5">Won</th>
+                    <th className="text-right py-1.5">Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.cartelas.map(c => (
+                    <tr key={c.cartela_id} className="border-t border-white/5">
+                      <td className="py-1.5 font-mono">#{c.cartela_id}</td>
+                      <td className="py-1.5 text-right font-mono text-gray-300">{c.plays}</td>
+                      <td className="py-1.5 text-right font-mono text-bingo-green">{c.wins}</td>
+                      <td className="py-1.5 text-right font-mono">{c.staked.toFixed(2)}</td>
+                      <td className="py-1.5 text-right font-mono text-bingo-gold">{c.won.toFixed(2)}</td>
+                      <td className={`py-1.5 text-right font-mono ${c.won - c.staked >= 0 ? "text-bingo-green" : "text-red-300"}`}>{(c.won - c.staked).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  {data.cartelas.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-gray-500">No cartelas played yet.</td></tr>}
+                </tbody>
+              </table>
+            )}
+
+            {view === "tx" && (
+              <table className="w-full text-[12px]">
+                <thead className="text-gray-400 uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="text-left py-1.5">Type</th>
+                    <th className="text-right py-1.5">Amount</th>
+                    <th className="text-center py-1.5">Status</th>
+                    <th className="text-left py-1.5">Provider</th>
+                    <th className="text-left py-1.5">Reference / Account</th>
+                    <th className="text-right py-1.5">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.transactions.map(t => (
+                    <tr key={t.id} className="border-t border-white/5">
+                      <td className="py-1.5">
+                        <span className={`text-[10px] font-black uppercase ${t.type === "deposit" ? "text-bingo-green" : "text-bingo-accent"}`}>{t.type}</span>
+                      </td>
+                      <td className="py-1.5 text-right font-mono">{Number(t.amount).toFixed(2)}</td>
+                      <td className="py-1.5 text-center">
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === "approved" ? "bg-bingo-green/20 text-bingo-green border-bingo-green/40" : t.status === "pending" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/40" : "bg-red-500/20 text-red-300 border-red-500/40"}`}>{t.status}</span>
+                      </td>
+                      <td className="py-1.5 uppercase text-gray-400">{t.provider ?? "—"}</td>
+                      <td className="py-1.5 font-mono text-gray-300 break-all">{t.reference || t.phone_number || t.cbe_account_number || "—"}</td>
+                      <td className="py-1.5 text-right text-gray-400 whitespace-nowrap">{new Date(t.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {data.transactions.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-gray-500">No transactions yet.</td></tr>}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
       </div>
     </div>
