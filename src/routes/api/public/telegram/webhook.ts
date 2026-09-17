@@ -467,7 +467,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                 parse_mode: "HTML",
                 reply_markup: {
                   inline_keyboard: [
-                      [{ text: playBtn, web_app: { url: `${APP_URL}?v=30077a8` } }],
+                      [{ text: playBtn, web_app: { url: `${APP_URL}?v=c2c05db` } }],
                     [{ text: inviteBtn, url: shareUrl }],
                     [{ text: supportBtn, url: supportUrl }],
                   ],
@@ -484,7 +484,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                   parse_mode: "HTML",
                   reply_markup: {
                     inline_keyboard: [
-                    [{ text: playBtn, web_app: { url: `${APP_URL}?v=30077a8` } }],
+                    [{ text: playBtn, web_app: { url: `${APP_URL}?v=c2c05db` } }],
                       [{ text: inviteBtn, url: shareUrl }],
                       [{ text: supportBtn, url: supportUrl }],
                     ],
