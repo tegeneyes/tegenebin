@@ -132,10 +132,10 @@ function BingoAppInner() {
           game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
           setBonusBalance(Number(p.bonus_balance || 0));
         }
-        setHasPhone(hasDevPhoneBypass() || !!p?.phone_number);
+        setHasPhone((current) => current || hasDevPhoneBypass() || !!p?.phone_number);
       } catch (e) {
         console.error(e);
-        setHasPhone(hasDevPhoneBypass());
+        setHasPhone((current) => current || hasDevPhoneBypass());
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
