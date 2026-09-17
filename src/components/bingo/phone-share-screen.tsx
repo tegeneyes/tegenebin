@@ -74,6 +74,7 @@ export function PhoneShareScreen({
         }
         toast.success(t("phone.shared_saving"))
         void checkSavedTelegramPhone()
+        onSaved("shared")
       })
     } catch {
       toast.error(t("phone.not_avail"))
