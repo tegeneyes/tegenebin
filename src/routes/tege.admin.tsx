@@ -506,7 +506,7 @@ function UsersPanel({ adminId }: { adminId: number }) {
               const bonus = Math.min(total, Number(r.bonus_balance || 0))
               const main = total - bonus
               return (
-              <tr key={r.telegram_id} className={`border-t border-white/5 hover:bg-white/[0.02] ${r.banned ? "bg-red-500/5" : ""}`}>
+              <tr key={r.telegram_id} onClick={() => setGamesFor(r)} className={`border-t border-white/5 hover:bg-white/[0.02] cursor-pointer ${r.banned ? "bg-red-500/5" : ""}`}>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
                     {r.photo_url
@@ -530,16 +530,16 @@ function UsersPanel({ adminId }: { adminId: number }) {
                     : <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-bingo-green/20 text-bingo-green border border-bingo-green/40">Active</span>}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">
-                  <button onClick={() => setGamesFor(r)} className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-bingo-accent/20 text-bingo-accent border-bingo-accent/40 hover:bg-bingo-accent/30 mr-1.5">Details</button>
+                  <button onClick={(e) => { e.stopPropagation(); setGamesFor(r) }} className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-bingo-accent/20 text-bingo-accent border-bingo-accent/40 hover:bg-bingo-accent/30 mr-1.5">Details</button>
                   <button
-                    onClick={() => setDialog(r.banned ? { type: "unban", row: r } : { type: "ban", row: r })}
+                    onClick={(e) => { e.stopPropagation(); setDialog(r.banned ? { type: "unban", row: r } : { type: "ban", row: r }) }}
                     disabled={actingId === r.telegram_id}
                     className={`text-[10px] font-black uppercase px-3 py-1 rounded border mr-1.5 ${r.banned ? "bg-bingo-green/20 text-bingo-green border-bingo-green/40 hover:bg-bingo-green/30" : "bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30"} disabled:opacity-50`}
                   >
                     {actingId === r.telegram_id ? "…" : r.banned ? "Unban" : "Ban"}
                   </button>
                   <button
-                    onClick={() => setDialog({ type: "delete", row: r })}
+                    onClick={(e) => { e.stopPropagation(); setDialog({ type: "delete", row: r }) }}
                     disabled={actingId === r.telegram_id}
                     className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-white/5 text-gray-300 border-white/15 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40 disabled:opacity-50"
                   >
@@ -552,7 +552,7 @@ function UsersPanel({ adminId }: { adminId: number }) {
           </tbody>
         </table>
       </div>
-      {gamesFor && <PlayerDetailModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} />}
+      {gamesFor && <PlayerDetailModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} onChanged={() => refresh(search)} />}
 
       <PromptDialog
         open={dialog?.type === "ban"}
@@ -604,11 +604,16 @@ type PlayerDetail = {
   cartelas: PlayerCartelaRow[]
 }
 
-function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; player: PlayerRow; onClose: () => void }) {
+function PlayerDetailModal({ adminId, player, onClose, onChanged }: { adminId: number; player: PlayerRow; onClose: () => void; onChanged?: () => void }) {
   const fetchDetail = useServerFn(adminPlayerDetail)
+  const setBanned = useServerFn(adminSetBanned)
   const [data, setData] = useState<PlayerDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [view, setView] = useState<"overview" | "games" | "cartelas" | "tx">("overview")
+  const [banned, setBannedState] = useState(player.banned)
+  const [bannedReason, setBannedReason] = useState(player.banned_reason)
+  const [banDialog, setBanDialog] = useState<"ban" | "unban" | null>(null)
+  const [banBusy, setBanBusy] = useState(false)
 
   useEffect(() => {
     fetchDetail({ data: { admin_id: adminId, telegram_id: player.telegram_id } })
@@ -616,6 +621,18 @@ function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; play
       .catch(e => setErr((e as Error).message))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.telegram_id])
+
+  const applyBan = async (next: boolean, reason?: string) => {
+    setBanBusy(true)
+    try {
+      await setBanned({ data: { admin_id: adminId, telegram_id: player.telegram_id, banned: next, reason: reason || undefined } })
+      setBannedState(next)
+      setBannedReason(next ? (reason || null) : null)
+      setBanDialog(null)
+      onChanged?.()
+    } catch (e) { setErr((e as Error).message) }
+    finally { setBanBusy(false) }
+  }
 
   const label = player.username ? `@${player.username}` : (player.first_name || String(player.telegram_id))
   const s = data?.summary
@@ -634,7 +651,7 @@ function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; play
           <div>
             <h3 className="font-display font-extrabold text-white">{label}</h3>
             <p className="text-[11px] text-gray-400 font-mono">
-              {player.telegram_id}{player.phone_number ? ` · ${player.phone_number}` : ""}{player.banned ? " · BANNED" : ""}
+              {player.telegram_id}{player.phone_number ? ` · ${player.phone_number}` : ""}{banned ? " · BANNED" : ""}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none px-2">×</button>
@@ -671,9 +688,29 @@ function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; play
                   <Stat k="Net" v={`${s.net >= 0 ? "+" : ""}${s.net.toFixed(2)}`} c={s.net >= 0 ? "text-bingo-green" : "text-red-300"} />
                 </div>
                 <div className="text-[11px] text-gray-400 space-y-1">
+                  <p>Name: <span className="text-gray-200">{player.first_name || "—"}</span></p>
+                  <p>Username: <span className="text-gray-200">{player.username ? `@${player.username}` : "—"}</span></p>
+                  <p>Phone: <span className="font-mono text-gray-200">{player.phone_number || "—"}</span></p>
+                  <p>Telegram ID: <span className="font-mono text-gray-200">{player.telegram_id}</span></p>
                   <p>Joined: <span className="text-gray-200">{new Date(player.created_at).toLocaleString()}</span></p>
                   <p>Referred by: <span className="font-mono text-gray-200">{player.referred_by ?? "—"}</span> {player.referral_bonus_paid ? <span className="text-bingo-green">· bonus paid</span> : ""}</p>
-                  {player.banned && <p className="text-red-300">Banned: {player.banned_reason || "—"}</p>}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase tracking-widest text-gray-400">Account status</span>
+                    {banned
+                      ? <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40">Banned</span>
+                      : <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-bingo-green/20 text-bingo-green border border-bingo-green/40">Active</span>}
+                  </div>
+                  {banned && <p className="text-[11px] text-red-300">Reason: {bannedReason || "—"}</p>}
+                  <button
+                    onClick={() => setBanDialog(banned ? "unban" : "ban")}
+                    disabled={banBusy}
+                    className={`w-full py-2.5 rounded-xl font-black text-xs uppercase disabled:opacity-50 ${banned ? "bg-bingo-green text-bingo-deep-purple" : "bg-red-500 text-white"}`}
+                  >
+                    {banned ? "Unban player" : "Ban player"}
+                  </button>
                 </div>
               </>
             )}
@@ -775,6 +812,26 @@ function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; play
             )}
           </div>
         )}
+
+        <PromptDialog
+          open={banDialog === "ban"}
+          title={`Ban ${label}`}
+          message="The player will be unable to play or deposit. The reason is optional."
+          placeholder="Reason (optional)"
+          confirmLabel="Ban"
+          busy={banBusy}
+          onSubmit={(reason) => applyBan(true, reason.trim())}
+          onCancel={() => setBanDialog(null)}
+        />
+        <ConfirmDialog
+          open={banDialog === "unban"}
+          title={`Unban ${label}`}
+          message="This player will be able to play and deposit again."
+          confirmLabel="Unban"
+          busy={banBusy}
+          onConfirm={() => applyBan(false)}
+          onCancel={() => setBanDialog(null)}
+        />
       </div>
     </div>
   )
