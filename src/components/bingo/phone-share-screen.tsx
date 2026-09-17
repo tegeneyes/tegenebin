@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Shield } from "lucide-react"
 import { toast } from "sonner"
@@ -40,6 +40,24 @@ export function PhoneShareScreen({
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+  // If the number is already on file (e.g. it was saved on a previous attempt),
+  // advance immediately instead of making the user share again.
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const status = await fetchPhone({ data: { telegram_id: telegramId } })
+        if (alive && status.phone_number) onSaved(status.phone_number)
+      } catch {
+        /* the manual flow below will surface any real error */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telegramId])
+
   // Poll until the bot webhook has persisted the shared number. The Telegram
   // `requestContact` callback is unreliable and can fire before the contact
   // update reaches our bot, so we never depend on it alone.
@@ -49,7 +67,7 @@ export function PhoneShareScreen({
     setDiag(null)
     let lastDiag: string | null = null
     try {
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 60; i++) {
         if (i > 0) await wait(1000)
         if (cancelledRef.current) return
         try {
