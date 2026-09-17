@@ -149,28 +149,43 @@ export const adminListBonusDrops = createServerFn({ method: "POST" })
 // ───────── Players directory (admin) ─────────
 
 export const adminListPlayers = createServerFn({ method: "POST" })
-  .inputValidator((d: { admin_id: string | number; search?: string }) => ({
+  .inputValidator((d: { admin_id: string | number; search?: string; limit?: number; offset?: number }) => ({
     admin_id: TelegramIdSchema.parse(d.admin_id),
     search: z.string().trim().max(100).optional().parse(d.search),
+    limit: Math.min(Math.max(Number(d.limit) || 200, 1), 1000),
+    offset: Math.max(Number(d.offset) || 0, 0),
   }))
   .handler(async ({ data }) => {
     if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
-    let q = supabaseAdmin
-      .from("players")
-      .select("telegram_id, first_name, username, phone_number, balance, bonus_balance, referred_by, referral_bonus_paid, photo_url, created_at, banned, banned_reason, banned_at")
-      .order("created_at", { ascending: false })
-      .limit(500)
+
+    let orFilter: string | null = null
     if (data.search) {
       const s = data.search
       const asNum = Number(s)
       const filters = [`username.ilike.%${s}%`, `first_name.ilike.%${s}%`, `phone_number.ilike.%${s}%`]
       if (Number.isFinite(asNum)) filters.push(`telegram_id.eq.${asNum}`)
-      q = q.or(filters.join(","))
+      orFilter = filters.join(",")
     }
-    const { data: rows, error } = await q
-    if (error) throw new Error(error.message)
-    return rows ?? []
+
+    let rowsQuery = supabaseAdmin
+      .from("players")
+      .select("telegram_id, first_name, username, phone_number, balance, bonus_balance, referred_by, referral_bonus_paid, photo_url, created_at, banned, banned_reason, banned_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(data.offset, data.offset + data.limit - 1)
+    if (orFilter) rowsQuery = rowsQuery.or(orFilter)
+
+    let bannedQuery = supabaseAdmin
+      .from("players")
+      .select("telegram_id", { count: "exact", head: true })
+      .eq("banned", true)
+    if (orFilter) bannedQuery = bannedQuery.or(orFilter)
+
+    const [rowsRes, bannedRes] = await Promise.all([rowsQuery, bannedQuery])
+    if (rowsRes.error) throw new Error(rowsRes.error.message)
+    if (bannedRes.error) throw new Error(bannedRes.error.message)
+
+    return { rows: rowsRes.data ?? [], total: rowsRes.count ?? 0, banned: bannedRes.count ?? 0 }
   })
 
 // Full per-player breakdown: balances, win/loss, bets, cartela picks and deposits.

@@ -413,9 +413,14 @@ function UsersPanel({ adminId }: { adminId: number }) {
   const list = useServerFn(adminListPlayers)
   const setBanned = useServerFn(adminSetBanned)
   const del = useServerFn(adminDeletePlayer)
+  const PAGE = 200
   const [rows, setRows] = useState<PlayerRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [bannedTotal, setBannedTotal] = useState(0)
   const [search, setSearch] = useState("")
+  const [activeSearch, setActiveSearch] = useState("")
   const [busy, setBusy] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [actingId, setActingId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<
@@ -429,21 +434,36 @@ function UsersPanel({ adminId }: { adminId: number }) {
   const rowLabel = (row: PlayerRow) =>
     row.username ? `@${row.username}` : (row.first_name || String(row.telegram_id))
 
+  const fetchPage = async (term: string, offset: number) => {
+    const res = await list({ data: { admin_id: adminId, search: term || undefined, limit: PAGE, offset } })
+    return res as { rows: PlayerRow[]; total: number; banned: number }
+  }
+
   const refresh = async (s?: string) => {
+    const term = s ?? ""
     setBusy(true); setErr(null)
     try {
-      const r = await list({ data: { admin_id: adminId, search: s || undefined } })
-      setRows(r as PlayerRow[])
+      const res = await fetchPage(term, 0)
+      setRows(res.rows); setTotal(res.total); setBannedTotal(res.banned); setActiveSearch(term)
     } catch (e) { setErr((e as Error).message) }
     finally { setBusy(false) }
   }
   useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
 
+  const loadMore = async () => {
+    setLoadingMore(true); setErr(null)
+    try {
+      const res = await fetchPage(activeSearch, rows.length)
+      setRows(prev => [...prev, ...res.rows]); setTotal(res.total); setBannedTotal(res.banned)
+    } catch (e) { setErr((e as Error).message) }
+    finally { setLoadingMore(false) }
+  }
+
   const applyBan = async (row: PlayerRow, banned: boolean, reason?: string) => {
     setActionBusy(true)
     try {
       await setBanned({ data: { admin_id: adminId, telegram_id: row.telegram_id, banned, reason: reason || undefined } })
-      await refresh(search)
+      await refresh(activeSearch)
       setDialog(null)
     } catch (e) { setErr((e as Error).message) }
     finally { setActionBusy(false) }
@@ -453,7 +473,7 @@ function UsersPanel({ adminId }: { adminId: number }) {
     setActionBusy(true)
     try {
       await del({ data: { admin_id: adminId, telegram_id: row.telegram_id } })
-      await refresh(search)
+      await refresh(activeSearch)
       setDialog(null)
     } catch (e) { setErr((e as Error).message) }
     finally { setActionBusy(false) }
@@ -473,7 +493,7 @@ function UsersPanel({ adminId }: { adminId: number }) {
         {search && <button type="button" onClick={() => { setSearch(""); refresh("") }} className="text-xs text-gray-400">Clear</button>}
       </form>
       <div className="flex flex-wrap justify-between gap-2 text-[11px] text-gray-400">
-        <span>{rows.length} users · {rows.filter(r => r.banned).length} banned</span>
+        <span>{rows.length} / {total} users · {bannedTotal} banned</span>
         <span>
           Main: <span className="text-white font-mono">{totalMain.toFixed(2)}</span>
           <span className="mx-2 text-white/20">|</span>
@@ -552,7 +572,13 @@ function UsersPanel({ adminId }: { adminId: number }) {
           </tbody>
         </table>
       </div>
-      {gamesFor && <PlayerDetailModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} onChanged={() => refresh(search)} />}
+      {rows.length < total && (
+        <button onClick={loadMore} disabled={loadingMore}
+          className="w-full py-2.5 rounded-xl border border-white/15 text-white font-bold text-xs uppercase disabled:opacity-50">
+          {loadingMore ? "Loading…" : `Load ${Math.min(PAGE, total - rows.length)} more`}
+        </button>
+      )}
+      {gamesFor && <PlayerDetailModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} onChanged={() => refresh(activeSearch)} />}
 
       <PromptDialog
         open={dialog?.type === "ban"}
