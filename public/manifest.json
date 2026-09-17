@@ -1,0 +1,21 @@
+{
+  "name": "Besh Bingo",
+  "short_name": "Bingo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f051a",
+  "theme_color": "#8b5cf6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/bingo/192/192",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://picsum.photos/seed/bingo/512/512",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
