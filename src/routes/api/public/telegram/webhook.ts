@@ -408,7 +408,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             }
 
             const inviteLink = `https://t.me/${BOT_USERNAME}?start=${fromId ?? ""}`;
-            const welcomeImage = `${APP_URL}/__l5e/assets-v1/a382c3dc-103f-4747-902b-a57d7bebd5ce/bot-welcome.jpg`;
+            const welcomeImage = `${APP_URL}/bot-welcome.jpg`;
 
             let caption: string;
             let playBtn: string;
@@ -462,7 +462,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             const supportUrl = "t.me/liyubing0";
             const supportBtn = isAm ? "💬 የድጋፍ ቡድን ይቀላቀሉ" : "💬 Join Support Group";
 
-            await tg(
+            const welcomeResponse = await tg(
               "sendPhoto",
               {
                 chat_id: chatId,
@@ -479,6 +479,24 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               },
               token,
             );
+            if (!welcomeResponse.ok) {
+              await tg(
+                "sendMessage",
+                {
+                  chat_id: chatId,
+                  text: caption,
+                  parse_mode: "HTML",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [{ text: playBtn, web_app: { url: APP_URL } }],
+                      [{ text: inviteBtn, url: shareUrl }],
+                      [{ text: supportBtn, url: supportUrl }],
+                    ],
+                  },
+                },
+                token,
+              );
+            }
           } else if (text.startsWith("/invite")) {
             const inviteLink = `https://t.me/${BOT_USERNAME}?start=${fromId ?? ""}`;
             const shareText = encodeURIComponent(
