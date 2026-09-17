@@ -73,7 +73,6 @@ export function PhoneShareScreen({
           return
         }
         toast.success(t("phone.shared_saving"))
-        void checkSavedTelegramPhone()
         onSaved("shared")
       })
     } catch {
