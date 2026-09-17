@@ -239,7 +239,7 @@ function BingoAppInner() {
   // Rules Screen
   if (showRules) {
     return (
-      <div className="flex flex-col h-screen w-full bg-bingo-deep-purple font-sans select-none max-w-[430px] mx-auto overflow-hidden relative border-x border-white/5">
+      <div className="flex flex-col h-dvh w-full bg-bingo-deep-purple font-sans select-none max-w-[430px] mx-auto overflow-hidden relative border-x border-white/5">
         <RulesScreen onBack={handleBackFromRules} />
       </div>
     );

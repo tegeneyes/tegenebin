@@ -108,7 +108,7 @@ export function WalletScreen() {
       </div>
 
       {/* Keep forms mounted so switching tabs doesn't re-fetch or reset state */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div hidden={tab !== "deposit"}><DepositForm telegramId={tg?.id ?? null} onDone={refresh} config={config} /></div>
         {tg && (
           <>

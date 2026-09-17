@@ -59,7 +59,7 @@ export function GameScreen({
       className="flex-1 flex flex-col overflow-hidden"
     >
       {/* Top stats strip */}
-      <div className="grid grid-cols-5 px-2 pt-3 pb-2 gap-1.5">
+      <div className="grid grid-cols-5 px-2 pt-3 pb-2 gap-1.5 flex-shrink-0">
         {stats.map((stat) => (
           <div
             key={stat.label}
@@ -78,7 +78,7 @@ export function GameScreen({
       </div>
 
       {/* Split view */}
-      <div className="flex-1 flex overflow-hidden px-2 pb-2 gap-2">
+      <div className="flex-1 min-h-0 flex overflow-hidden px-2 pb-2 gap-2">
         <MasterBoard calledNumbers={calledNumbers} />
 
         <div className="flex-1 flex flex-col overflow-hidden bg-white/[0.03] border border-white/10 rounded-2xl">
@@ -125,8 +125,8 @@ export function GameScreen({
 
       {/* Bottom actions */}
       <div 
-        className="px-3 pt-2 pb-20 grid grid-cols-2 gap-2"
-        style={{ paddingBottom: 'max(80px, calc(env(safe-area-inset-bottom) + 80px))' }}
+        className="px-3 pt-2 grid grid-cols-2 gap-2 flex-shrink-0"
+        style={{ paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 12px))' }}
       >
         <button
           onClick={onLeave}

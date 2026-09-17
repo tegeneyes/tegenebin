@@ -49,7 +49,7 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
 
   return (
     <ScreenWrapper screenKey="home">
-      <div className="relative flex-1 flex flex-col items-center justify-start px-4 pt-2 pb-24 overflow-hidden">
+      <div className="relative w-full flex flex-col items-center justify-start px-4 pt-2 pb-2">
         {/* Ambient glow */}
         <div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full blur-3xl opacity-50"
              style={{ background: "radial-gradient(circle, rgba(180,92,255,0.6), transparent 70%)" }} />
