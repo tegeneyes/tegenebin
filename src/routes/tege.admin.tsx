@@ -10,8 +10,7 @@ import {
 } from "@/lib/wallet.functions"
 import {
   adminListAnnouncements, adminSetAnnouncement, adminClearAnnouncement,
-  adminBonusDrop, adminListBonusDrops, adminListPlayers, adminSetBanned, adminPlayerDetail,
-  adminListGames,
+  adminBonusDrop, adminListBonusDrops, adminListPlayers, adminSetBanned, adminPlayerDetail, adminDeletePlayer,
   type PlayerGameRow, type PlayerCartelaRow,
 } from "@/lib/admin-tools.functions"
 import { parseSms } from "@/lib/sms-parser"
@@ -88,7 +87,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
 function AdminPage({ onLogout }: { onLogout: () => void }) {
   const tg = { id: ADMIN_TG_ID }
-  const [tab, setTab] = useState<"tx" | "promo" | "announce" | "bonus" | "users" | "games">("tx")
+  const [tab, setTab] = useState<"tx" | "promo" | "announce" | "bonus" | "users">("tx")
   const [error, setError] = useState<string | null>(null)
   const [txs, setTxs] = useState<Tx[]>([])
   const [promos, setPromos] = useState<Promo[]>([])
@@ -116,12 +115,18 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { if (tg) refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tg?.id])
 
-  const handleAction = async (tx_id: string, action: "approve" | "reject") => {
-    const note = window.prompt(`Note for ${action}? (optional)`) || undefined
+  const [txDialog, setTxDialog] = useState<{ tx_id: string; action: "approve" | "reject" } | null>(null)
+  const [txBusy, setTxBusy] = useState(false)
+
+  const runTxAction = async (note?: string) => {
+    if (!txDialog) return
+    setTxBusy(true)
     try {
-      await process({ data: { admin_id: tg!.id, tx_id, action, note } })
+      await process({ data: { admin_id: tg!.id, tx_id: txDialog.tx_id, action: txDialog.action, note } })
       await refresh()
-    } catch (e) { alert((e as Error).message) }
+      setTxDialog(null)
+    } catch (e) { setError((e as Error).message) }
+    finally { setTxBusy(false) }
   }
 
   const handleCreatePromo = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -138,7 +143,7 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
       }})
       ;(e.target as HTMLFormElement).reset()
       await refresh()
-    } catch (err) { alert((err as Error).message) }
+    } catch (err) { setError((err as Error).message) }
   }
 
   return (
@@ -160,7 +165,6 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
         <button onClick={() => setTab("announce")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "announce" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Lobby Banner</button>
         <button onClick={() => setTab("bonus")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "bonus" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Bonus Drop</button>
         <button onClick={() => setTab("users")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "users" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Users</button>
-        <button onClick={() => setTab("games")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "games" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Games</button>
       </div>
 
 
@@ -184,8 +188,8 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
                   </div>
                   {t.status === "pending" && (
                     <div className="flex gap-2">
-                      <button onClick={() => handleAction(t.id, "approve")} className="px-3 py-1.5 rounded bg-bingo-green text-bingo-deep-purple text-xs font-black uppercase">Approve</button>
-                      <button onClick={() => handleAction(t.id, "reject")} className="px-3 py-1.5 rounded bg-red-500 text-white text-xs font-black uppercase">Reject</button>
+                      <button onClick={() => setTxDialog({ tx_id: t.id, action: "approve" })} className="px-3 py-1.5 rounded bg-bingo-green text-bingo-deep-purple text-xs font-black uppercase">Approve</button>
+                      <button onClick={() => setTxDialog({ tx_id: t.id, action: "reject" })} className="px-3 py-1.5 rounded bg-red-500 text-white text-xs font-black uppercase">Reject</button>
                     </div>
                   )}
                 </div>
@@ -249,7 +253,17 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
       {tab === "announce" && <AnnouncePanel adminId={tg.id} />}
       {tab === "bonus" && <BonusPanel adminId={tg.id} />}
       {tab === "users" && <UsersPanel adminId={tg.id} />}
-      {tab === "games" && <GamesPanel adminId={tg.id} />}
+
+      <PromptDialog
+        open={!!txDialog}
+        title={txDialog?.action === "approve" ? "Approve transaction" : "Reject transaction"}
+        message="Optional note — it is shown to the player in their transaction history."
+        placeholder="Note (optional)"
+        confirmLabel={txDialog?.action === "approve" ? "Approve" : "Reject"}
+        busy={txBusy}
+        onSubmit={(note) => runTxAction(note.trim() || undefined)}
+        onCancel={() => setTxDialog(null)}
+      />
     </div>
   )
 }
@@ -317,21 +331,23 @@ function BonusPanel({ adminId }: { adminId: number }) {
   }
   useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
 
+  const [confirming, setConfirming] = useState(false)
+
+  const doDrop = async () => {
+    setBusy(true); setResult(null)
+    try {
+      const r = await drop({ data: { admin_id: adminId, amount, note: note || undefined, notify } }) as any
+      setResult(`✅ Credited ${r.amount} ETB to ${r.recipients} players.`)
+      setNote("")
+      await refresh()
+    } catch (err) { setResult((err as Error).message) }
+    finally { setBusy(false); setConfirming(false) }
+  }
+
   return (
     <div className="mt-6 space-y-4">
       <form className="bg-white/[0.04] border border-white/10 rounded-xl p-4 space-y-3"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          if (!window.confirm(`Credit ${amount} ETB to EVERY player?`)) return
-          setBusy(true); setResult(null)
-          try {
-            const r = await drop({ data: { admin_id: adminId, amount, note: note || undefined, notify } }) as any
-            setResult(`✅ Credited ${r.amount} ETB to ${r.recipients} players.`)
-            setNote("")
-            await refresh()
-          } catch (err) { setResult((err as Error).message) }
-          finally { setBusy(false) }
-        }}>
+        onSubmit={(e) => { e.preventDefault(); setConfirming(true) }}>
         <p className="text-xs uppercase tracking-widest text-gray-400">Bonus Drop to All Users</p>
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
@@ -370,6 +386,16 @@ function BonusPanel({ adminId }: { adminId: number }) {
           </ul>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirming}
+        title="Bonus drop"
+        message={`Credit ${amount} ETB to EVERY player? This cannot be undone.`}
+        confirmLabel="Drop"
+        busy={busy}
+        onConfirm={doDrop}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   )
 }
@@ -386,11 +412,22 @@ type PlayerRow = {
 function UsersPanel({ adminId }: { adminId: number }) {
   const list = useServerFn(adminListPlayers)
   const setBanned = useServerFn(adminSetBanned)
+  const del = useServerFn(adminDeletePlayer)
   const [rows, setRows] = useState<PlayerRow[]>([])
   const [search, setSearch] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [actingId, setActingId] = useState<number | null>(null)
+  const [dialog, setDialog] = useState<
+    | { type: "ban"; row: PlayerRow }
+    | { type: "unban"; row: PlayerRow }
+    | { type: "delete"; row: PlayerRow }
+    | null
+  >(null)
+  const [actionBusy, setActionBusy] = useState(false)
+
+  const rowLabel = (row: PlayerRow) =>
+    row.username ? `@${row.username}` : (row.first_name || String(row.telegram_id))
 
   const refresh = async (s?: string) => {
     setBusy(true); setErr(null)
@@ -402,21 +439,24 @@ function UsersPanel({ adminId }: { adminId: number }) {
   }
   useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
 
-  const handleBanToggle = async (row: PlayerRow) => {
-    const goingToBan = !row.banned
-    const label = `${row.first_name || row.username || row.telegram_id}`
-    if (goingToBan) {
-      const reason = window.prompt(`Ban ${label}? Enter a reason (optional):`)
-      if (reason === null) return
-      setActingId(row.telegram_id)
-      try { await setBanned({ data: { admin_id: adminId, telegram_id: row.telegram_id, banned: true, reason: reason || undefined } }); await refresh(search) }
-      catch (e) { alert((e as Error).message) } finally { setActingId(null) }
-    } else {
-      if (!window.confirm(`Unban ${label}?`)) return
-      setActingId(row.telegram_id)
-      try { await setBanned({ data: { admin_id: adminId, telegram_id: row.telegram_id, banned: false } }); await refresh(search) }
-      catch (e) { alert((e as Error).message) } finally { setActingId(null) }
-    }
+  const applyBan = async (row: PlayerRow, banned: boolean, reason?: string) => {
+    setActionBusy(true)
+    try {
+      await setBanned({ data: { admin_id: adminId, telegram_id: row.telegram_id, banned, reason: reason || undefined } })
+      await refresh(search)
+      setDialog(null)
+    } catch (e) { setErr((e as Error).message) }
+    finally { setActionBusy(false) }
+  }
+
+  const removePlayer = async (row: PlayerRow) => {
+    setActionBusy(true)
+    try {
+      await del({ data: { admin_id: adminId, telegram_id: row.telegram_id } })
+      await refresh(search)
+      setDialog(null)
+    } catch (e) { setErr((e as Error).message) }
+    finally { setActionBusy(false) }
   }
 
   const totalMain = rows.reduce((s, r) => s + Math.max(0, Number(r.balance || 0) - Number(r.bonus_balance || 0)), 0)
@@ -492,11 +532,18 @@ function UsersPanel({ adminId }: { adminId: number }) {
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <button onClick={() => setGamesFor(r)} className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-bingo-accent/20 text-bingo-accent border-bingo-accent/40 hover:bg-bingo-accent/30 mr-1.5">Details</button>
                   <button
-                    onClick={() => handleBanToggle(r)}
+                    onClick={() => setDialog(r.banned ? { type: "unban", row: r } : { type: "ban", row: r })}
                     disabled={actingId === r.telegram_id}
-                    className={`text-[10px] font-black uppercase px-3 py-1 rounded border ${r.banned ? "bg-bingo-green/20 text-bingo-green border-bingo-green/40 hover:bg-bingo-green/30" : "bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30"} disabled:opacity-50`}
+                    className={`text-[10px] font-black uppercase px-3 py-1 rounded border mr-1.5 ${r.banned ? "bg-bingo-green/20 text-bingo-green border-bingo-green/40 hover:bg-bingo-green/30" : "bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30"} disabled:opacity-50`}
                   >
                     {actingId === r.telegram_id ? "…" : r.banned ? "Unban" : "Ban"}
+                  </button>
+                  <button
+                    onClick={() => setDialog({ type: "delete", row: r })}
+                    disabled={actingId === r.telegram_id}
+                    className="text-[10px] font-black uppercase px-3 py-1 rounded border bg-white/5 text-gray-300 border-white/15 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40 disabled:opacity-50"
+                  >
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -506,6 +553,36 @@ function UsersPanel({ adminId }: { adminId: number }) {
         </table>
       </div>
       {gamesFor && <PlayerDetailModal adminId={adminId} player={gamesFor} onClose={() => setGamesFor(null)} />}
+
+      <PromptDialog
+        open={dialog?.type === "ban"}
+        title={`Ban ${dialog ? rowLabel(dialog.row) : ""}`}
+        message="The player will be unable to play or deposit. The reason is optional and stored internally."
+        placeholder="Reason (optional)"
+        confirmLabel="Ban"
+        busy={actionBusy}
+        onSubmit={(reason) => dialog && applyBan(dialog.row, true, reason.trim())}
+        onCancel={() => setDialog(null)}
+      />
+      <ConfirmDialog
+        open={dialog?.type === "unban"}
+        title={`Unban ${dialog ? rowLabel(dialog.row) : ""}`}
+        message="This player will be able to play and deposit again."
+        confirmLabel="Unban"
+        busy={actionBusy}
+        onConfirm={() => dialog && applyBan(dialog.row, false)}
+        onCancel={() => setDialog(null)}
+      />
+      <ConfirmDialog
+        open={dialog?.type === "delete"}
+        title={`Delete ${dialog ? rowLabel(dialog.row) : ""}`}
+        message="Permanently removes the player, their transactions, game history and bonuses. They can then register again with the same Telegram account."
+        confirmLabel="Delete"
+        danger
+        busy={actionBusy}
+        onConfirm={() => dialog && removePlayer(dialog.row)}
+        onCancel={() => setDialog(null)}
+      />
     </div>
   )
 }
@@ -703,76 +780,51 @@ function PlayerDetailModal({ adminId, player, onClose }: { adminId: number; play
   )
 }
 
-type GameRow = {
-  id: string; short_code: string | null; stake: number; prize_pool: number;
-  player_count: number; called_numbers: number[] | null; winner_telegram_id: number | null;
-  status: string; started_at: string | null; ended_at: string | null; created_at: string;
+function ConfirmDialog({
+  open, title, message, confirmLabel = "Confirm", danger = false, busy = false, onConfirm, onCancel,
+}: {
+  open: boolean; title: string; message: string; confirmLabel?: string; danger?: boolean; busy?: boolean;
+  onConfirm: () => void; onCancel: () => void;
+}) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onCancel}>
+      <div className="w-full max-w-sm bg-bingo-deep-purple border border-white/15 rounded-2xl p-5 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <h3 className="font-display font-extrabold text-white text-lg">{title}</h3>
+        <p className="text-sm text-gray-300 whitespace-pre-wrap">{message}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={onCancel} disabled={busy} className="py-2.5 rounded-xl border border-white/15 text-white font-bold text-xs uppercase disabled:opacity-50">Cancel</button>
+          <button onClick={onConfirm} disabled={busy} className={`py-2.5 rounded-xl font-black text-xs uppercase disabled:opacity-50 ${danger ? "bg-red-500 text-white" : "bg-bingo-green text-bingo-deep-purple"}`}>
+            {busy ? "…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function GamesPanel({ adminId }: { adminId: number }) {
-  const list = useServerFn(adminListGames)
-  const [rows, setRows] = useState<GameRow[]>([])
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const refresh = async () => {
-    setBusy(true); setErr(null)
-    try { setRows((await list({ data: { admin_id: adminId, limit: 100 } })) as GameRow[]) }
-    catch (e) { setErr((e as Error).message) }
-    finally { setBusy(false) }
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { refresh() }, [])
-
-  const totalStaked = rows.reduce((s, g) => s + Number(g.stake || 0) * Math.max(1, Number(g.player_count || 0)), 0)
-  const totalPayout = rows.reduce((s, g) => s + Number(g.prize_pool || 0), 0)
-
+function PromptDialog({
+  open, title, message, placeholder, confirmLabel = "Save", busy = false, onSubmit, onCancel,
+}: {
+  open: boolean; title: string; message: string; placeholder?: string; confirmLabel?: string; busy?: boolean;
+  onSubmit: (value: string) => void; onCancel: () => void;
+}) {
+  const [value, setValue] = useState("")
+  useEffect(() => { if (open) setValue("") }, [open])
+  if (!open) return null
   return (
-    <div className="mt-6 space-y-3">
-      <div className="flex flex-wrap justify-between gap-2 text-[11px] text-gray-400">
-        <span>{rows.length} recent games</span>
-        <span>
-          Staked: <span className="text-white font-mono">{totalStaked.toFixed(2)}</span>
-          <span className="mx-2 text-white/20">|</span>
-          Payouts: <span className="text-bingo-gold font-mono">{totalPayout.toFixed(2)}</span>
-          <span className="mx-2 text-white/20">|</span>
-          House: <span className="text-bingo-green font-mono">{(totalStaked - totalPayout).toFixed(2)} ETB</span>
-        </span>
-      </div>
-      {err && <div className="bg-red-500/20 border border-red-500/40 rounded p-2 text-sm">{err}</div>}
-      {busy && <p className="text-gray-400 text-sm">Loading…</p>}
-      <div className="overflow-x-auto rounded-xl border border-white/10">
-        <table className="w-full text-[12px]">
-          <thead className="bg-white/5 text-gray-400 uppercase text-[10px] tracking-wider">
-            <tr>
-              <th className="text-left px-3 py-2">Game</th>
-              <th className="text-right px-3 py-2">Stake</th>
-              <th className="text-right px-3 py-2">Players</th>
-              <th className="text-right px-3 py-2">Prize pool</th>
-              <th className="text-left px-3 py-2">Winner</th>
-              <th className="text-center px-3 py-2">Calls</th>
-              <th className="text-left px-3 py-2">Status</th>
-              <th className="text-right px-3 py-2">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(g => (
-              <tr key={g.id} className="border-t border-white/5 hover:bg-white/[0.02]">
-                <td className="px-3 py-2 font-mono text-gray-300">{g.short_code ?? "—"}</td>
-                <td className="px-3 py-2 text-right font-mono">{Number(g.stake || 0).toFixed(2)}</td>
-                <td className="px-3 py-2 text-right font-mono text-gray-400">{g.player_count}</td>
-                <td className="px-3 py-2 text-right font-mono text-bingo-gold">{Number(g.prize_pool || 0).toFixed(2)}</td>
-                <td className="px-3 py-2 font-mono text-gray-300">{g.winner_telegram_id ?? "—"}</td>
-                <td className="px-3 py-2 text-center font-mono text-gray-400">{Array.isArray(g.called_numbers) ? g.called_numbers.length : 0}</td>
-                <td className="px-3 py-2">
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">{g.status}</span>
-                </td>
-                <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{new Date(g.created_at).toLocaleString()}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && !busy && <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">No games yet.</td></tr>}
-          </tbody>
-        </table>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onCancel}>
+      <div className="w-full max-w-sm bg-bingo-deep-purple border border-white/15 rounded-2xl p-5 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <h3 className="font-display font-extrabold text-white text-lg">{title}</h3>
+        <p className="text-sm text-gray-300 whitespace-pre-wrap">{message}</p>
+        <textarea value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} rows={3}
+          className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:border-bingo-accent focus:outline-none resize-none" />
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={onCancel} disabled={busy} className="py-2.5 rounded-xl border border-white/15 text-white font-bold text-xs uppercase disabled:opacity-50">Cancel</button>
+          <button onClick={() => onSubmit(value)} disabled={busy} className="py-2.5 rounded-xl bg-bingo-green text-bingo-deep-purple font-black text-xs uppercase disabled:opacity-50">
+            {busy ? "…" : confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   )

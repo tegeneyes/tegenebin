@@ -305,22 +305,30 @@ export const adminSetBanned = createServerFn({ method: "POST" })
     return row
   })
 
-// ───────── Games list (admin) ─────────
+// ───────── Delete player (admin) ─────────
 
-export const adminListGames = createServerFn({ method: "POST" })
-  .inputValidator((d: { admin_id: string | number; limit?: number }) => ({
+export const adminDeletePlayer = createServerFn({ method: "POST" })
+  .inputValidator((d: { admin_id: string | number; telegram_id: string | number }) => ({
     admin_id: TelegramIdSchema.parse(d.admin_id),
-    limit: Math.min(Math.max(Number(d.limit) || 50, 1), 200),
+    telegram_id: TelegramIdSchema.parse(d.telegram_id),
   }))
   .handler(async ({ data }) => {
     if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
+    if (data.admin_id === data.telegram_id) throw new Error("You cannot delete your own admin account.")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
-    const { data: rows, error } = await supabaseAdmin
-      .from("games")
-      .select("id, short_code, stake, prize_pool, player_count, called_numbers, winner_telegram_id, status, started_at, ended_at, created_at")
-      .order("created_at", { ascending: false })
-      .limit(data.limit)
-    if (error) throw new Error(error.message)
-    return rows ?? []
+
+    // Clear every record keyed by this Telegram id so the account can register
+    // fresh (welcome bonus, promo claims and game history).
+    const games = await supabaseAdmin.from("game_results").delete().eq("telegram_id", data.telegram_id)
+    if (games.error) throw new Error(games.error.message)
+    const promos = await supabaseAdmin.from("promo_redemptions").delete().eq("telegram_id", data.telegram_id)
+    if (promos.error) throw new Error(promos.error.message)
+    const bonuses = await supabaseAdmin.from("welcome_bonus_claims").delete().eq("telegram_id", data.telegram_id)
+    if (bonuses.error) throw new Error(bonuses.error.message)
+
+    // Deleting the player cascades their transactions (FK ON DELETE CASCADE).
+    const player = await supabaseAdmin.from("players").delete().eq("telegram_id", data.telegram_id)
+    if (player.error) throw new Error(player.error.message)
+    return { ok: true, telegram_id: data.telegram_id }
   })
 
