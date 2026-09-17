@@ -9,6 +9,7 @@ import { useTelegramUser } from "@/hooks/use-telegram-user";
 import { useLobbyPresence } from "@/hooks/use-lobby-presence";
 import { ensurePlayer, getWallet } from "@/lib/wallet.functions";
 import { finishGame, startGame } from "@/lib/game.functions";
+import { isAdminId } from "@/lib/admin";
 import type { Cartela } from "@/lib/bingo/types";
 import { BottomNav } from "@/components/bingo/bottom-nav";
 
@@ -132,10 +133,10 @@ function BingoAppInner() {
           game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
           setBonusBalance(Number(p.bonus_balance || 0));
         }
-        setHasPhone((current) => current || hasDevPhoneBypass() || !!p?.phone_number);
+        setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id) || !!p?.phone_number);
       } catch (e) {
         console.error(e);
-        setHasPhone((current) => current || hasDevPhoneBypass());
+        setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

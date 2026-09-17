@@ -231,3 +231,22 @@ export const adminSetBanned = createServerFn({ method: "POST" })
     return row
   })
 
+// ───────── Games list (admin) ─────────
+
+export const adminListGames = createServerFn({ method: "POST" })
+  .inputValidator((d: { admin_id: string | number; limit?: number }) => ({
+    admin_id: TelegramIdSchema.parse(d.admin_id),
+    limit: Math.min(Math.max(Number(d.limit) || 50, 1), 200),
+  }))
+  .handler(async ({ data }) => {
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { data: rows, error } = await supabaseAdmin
+      .from("games")
+      .select("id, short_code, stake, prize_pool, player_count, called_numbers, winner_telegram_id, status, started_at, ended_at, created_at")
+      .order("created_at", { ascending: false })
+      .limit(data.limit)
+    if (error) throw new Error(error.message)
+    return rows ?? []
+  })
+

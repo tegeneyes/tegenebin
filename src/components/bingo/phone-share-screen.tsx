@@ -72,6 +72,8 @@ export function PhoneShareScreen({
     const tg = typeof window !== "undefined" ? window.Telegram?.WebApp : undefined
     if (!tg?.requestContact) {
       toast.error(t("phone.not_avail"))
+      // The number may already have been shared through the bot's keyboard button.
+      void pollForSavedPhone()
       return
     }
     try {

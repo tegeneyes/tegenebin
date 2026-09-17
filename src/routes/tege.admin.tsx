@@ -11,6 +11,7 @@ import {
 import {
   adminListAnnouncements, adminSetAnnouncement, adminClearAnnouncement,
   adminBonusDrop, adminListBonusDrops, adminListPlayers, adminSetBanned, adminPlayerGames,
+  adminListGames,
 } from "@/lib/admin-tools.functions"
 import { parseSms } from "@/lib/sms-parser"
 
@@ -86,7 +87,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
 function AdminPage({ onLogout }: { onLogout: () => void }) {
   const tg = { id: ADMIN_TG_ID }
-  const [tab, setTab] = useState<"tx" | "promo" | "announce" | "bonus" | "users">("tx")
+  const [tab, setTab] = useState<"tx" | "promo" | "announce" | "bonus" | "users" | "games">("tx")
   const [error, setError] = useState<string | null>(null)
   const [txs, setTxs] = useState<Tx[]>([])
   const [promos, setPromos] = useState<Promo[]>([])
@@ -158,6 +159,7 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
         <button onClick={() => setTab("announce")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "announce" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Lobby Banner</button>
         <button onClick={() => setTab("bonus")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "bonus" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Bonus Drop</button>
         <button onClick={() => setTab("users")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "users" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Users</button>
+        <button onClick={() => setTab("games")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "games" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Games</button>
       </div>
 
 
@@ -246,6 +248,7 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
       {tab === "announce" && <AnnouncePanel adminId={tg.id} />}
       {tab === "bonus" && <BonusPanel adminId={tg.id} />}
       {tab === "users" && <UsersPanel adminId={tg.id} />}
+      {tab === "games" && <GamesPanel adminId={tg.id} />}
     </div>
   )
 }
@@ -589,6 +592,81 @@ function PlayerGamesModal({ adminId, player, onClose }: { adminId: number; playe
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+type GameRow = {
+  id: string; short_code: string | null; stake: number; prize_pool: number;
+  player_count: number; called_numbers: number[] | null; winner_telegram_id: number | null;
+  status: string; started_at: string | null; ended_at: string | null; created_at: string;
+}
+
+function GamesPanel({ adminId }: { adminId: number }) {
+  const list = useServerFn(adminListGames)
+  const [rows, setRows] = useState<GameRow[]>([])
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const refresh = async () => {
+    setBusy(true); setErr(null)
+    try { setRows((await list({ data: { admin_id: adminId, limit: 100 } })) as GameRow[]) }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refresh() }, [])
+
+  const totalStaked = rows.reduce((s, g) => s + Number(g.stake || 0) * Math.max(1, Number(g.player_count || 0)), 0)
+  const totalPayout = rows.reduce((s, g) => s + Number(g.prize_pool || 0), 0)
+
+  return (
+    <div className="mt-6 space-y-3">
+      <div className="flex flex-wrap justify-between gap-2 text-[11px] text-gray-400">
+        <span>{rows.length} recent games</span>
+        <span>
+          Staked: <span className="text-white font-mono">{totalStaked.toFixed(2)}</span>
+          <span className="mx-2 text-white/20">|</span>
+          Payouts: <span className="text-bingo-gold font-mono">{totalPayout.toFixed(2)}</span>
+          <span className="mx-2 text-white/20">|</span>
+          House: <span className="text-bingo-green font-mono">{(totalStaked - totalPayout).toFixed(2)} ETB</span>
+        </span>
+      </div>
+      {err && <div className="bg-red-500/20 border border-red-500/40 rounded p-2 text-sm">{err}</div>}
+      {busy && <p className="text-gray-400 text-sm">Loading…</p>}
+      <div className="overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full text-[12px]">
+          <thead className="bg-white/5 text-gray-400 uppercase text-[10px] tracking-wider">
+            <tr>
+              <th className="text-left px-3 py-2">Game</th>
+              <th className="text-right px-3 py-2">Stake</th>
+              <th className="text-right px-3 py-2">Players</th>
+              <th className="text-right px-3 py-2">Prize pool</th>
+              <th className="text-left px-3 py-2">Winner</th>
+              <th className="text-center px-3 py-2">Calls</th>
+              <th className="text-left px-3 py-2">Status</th>
+              <th className="text-right px-3 py-2">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(g => (
+              <tr key={g.id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                <td className="px-3 py-2 font-mono text-gray-300">{g.short_code ?? "—"}</td>
+                <td className="px-3 py-2 text-right font-mono">{Number(g.stake || 0).toFixed(2)}</td>
+                <td className="px-3 py-2 text-right font-mono text-gray-400">{g.player_count}</td>
+                <td className="px-3 py-2 text-right font-mono text-bingo-gold">{Number(g.prize_pool || 0).toFixed(2)}</td>
+                <td className="px-3 py-2 font-mono text-gray-300">{g.winner_telegram_id ?? "—"}</td>
+                <td className="px-3 py-2 text-center font-mono text-gray-400">{Array.isArray(g.called_numbers) ? g.called_numbers.length : 0}</td>
+                <td className="px-3 py-2">
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">{g.status}</span>
+                </td>
+                <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{new Date(g.created_at).toLocaleString()}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && !busy && <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">No games yet.</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   )
