@@ -16,6 +16,7 @@ declare global {
       WebApp?: {
         ready: () => void
         expand: () => void
+        initData?: string
         initDataUnsafe?: { user?: TelegramUser; start_param?: string }
         requestContact?: (cb: (ok: boolean) => void) => void
         showAlert?: (msg: string) => void
@@ -25,43 +26,73 @@ declare global {
   }
 }
 
+// True only on local dev / preview hosts. Production must NEVER fabricate an id,
+// because every server-side record is keyed by the real Telegram id.
+function isDevHost(): boolean {
+  if (import.meta.env.DEV) return true
+  if (typeof window === "undefined") return false
+  const host = window.location.hostname
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host.startsWith("id-preview--") ||
+    /^project--.+-dev\./.test(host)
+  )
+}
+
+function readTelegramUser(): TelegramUser | null {
+  if (typeof window === "undefined") return null
+  const tg = window.Telegram?.WebApp
+  if (!tg) return null
+  try {
+    tg.ready()
+    tg.expand()
+  } catch {
+    /* ignore */
+  }
+  const u = tg.initDataUnsafe?.user
+  if (!u?.id) return null
+  return {
+    id: Number(u.id),
+    first_name: u.first_name,
+    last_name: u.last_name,
+    username: u.username,
+    photo_url: u.photo_url,
+    language_code: u.language_code,
+    start_param: tg.initDataUnsafe?.start_param,
+  }
+}
+
 export function useTelegramUser(): TelegramUser | null {
   const [user, setUser] = useState<TelegramUser | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
 
-    const tryInit = () => {
-      const tg = window.Telegram?.WebApp
-      if (tg) {
-        try { tg.ready(); tg.expand() } catch {}
-        const tgUser = tg.initDataUnsafe?.user
-        const startParam = tg.initDataUnsafe?.start_param
-        if (tgUser?.id) {
-          setUser({
-            id: Number(tgUser.id),
-            first_name: tgUser.first_name,
-            last_name: tgUser.last_name,
-            username: tgUser.username,
-            photo_url: tgUser.photo_url,
-            language_code: tgUser.language_code,
-            start_param: startParam,
-          })
-          return true
-        }
-      }
-      return false
+    // The Telegram script is loaded synchronously in <head>, so this usually
+    // resolves on the first tick.
+    const initial = readTelegramUser()
+    if (initial) {
+      setUser(initial)
+      return
     }
 
-    if (tryInit()) return
-    // Script may still be loading — retry briefly
     let tries = 0
-    const t = setInterval(() => {
+    const MAX_TRIES = 40 // ~10s on a slow connection
+    const tick = () => {
       tries++
-      if (tryInit() || tries > 20) {
-        clearInterval(t)
-        if (tries > 20 && !window.Telegram?.WebApp?.initDataUnsafe?.user) {
-          // Dev fallback for browser preview
+      const u = readTelegramUser()
+      if (u) {
+        setUser(u)
+        window.clearInterval(timer)
+        return
+      }
+      if (tries >= MAX_TRIES) {
+        window.clearInterval(timer)
+        // Only ever invent an identity for local development / previews.
+        // Inside real Telegram or a normal browser we must stay anonymous so we
+        // never write to the wrong player row.
+        if (isDevHost()) {
           let devId = window.localStorage.getItem("besh_dev_tg_id")
           if (!devId) {
             devId = String(900000000 + Math.floor(Math.random() * 1000000))
@@ -70,8 +101,24 @@ export function useTelegramUser(): TelegramUser | null {
           setUser({ id: Number(devId), first_name: "Guest", username: "guest" })
         }
       }
-    }, 150)
-    return () => clearInterval(t)
+    }
+    const timer = window.setInterval(tick, 250)
+    tick()
+
+    // If the Telegram script finishes loading late, adopt the real user at once.
+    const onLoad = () => {
+      const u = readTelegramUser()
+      if (u) {
+        setUser(u)
+        window.clearInterval(timer)
+      }
+    }
+    window.addEventListener("load", onLoad)
+
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("load", onLoad)
+    }
   }, [])
 
   return user

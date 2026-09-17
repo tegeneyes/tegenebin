@@ -40,6 +40,26 @@ export const getWallet = createServerFn({ method: "POST" })
     return { player, transactions: txs ?? [] }
   })
 
+// Lightweight poll target for the phone-verification screen. Unlike getWallet it
+// surfaces DB errors instead of silently returning null, so the app can tell the
+// difference between "not saved yet" and "lookup failed".
+export const getPhoneStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: { telegram_id: string | number }) => ({ telegram_id: TelegramIdSchema.parse(d.telegram_id) }))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { data: player, error } = await supabaseAdmin
+      .from("players")
+      .select("telegram_id, phone_number")
+      .eq("telegram_id", data.telegram_id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    return {
+      telegram_id: data.telegram_id,
+      exists: !!player,
+      phone_number: player?.phone_number ?? null,
+    }
+  })
+
 export const requestDeposit = createServerFn({ method: "POST" })
   .inputValidator((d: {
     telegram_id: string | number

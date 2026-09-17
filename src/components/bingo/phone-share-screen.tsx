@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { Shield } from "lucide-react"
 import { toast } from "sonner"
 import { useServerFn } from "@tanstack/react-start"
-import { getWallet } from "@/lib/wallet.functions"
+import { getPhoneStatus } from "@/lib/wallet.functions"
 import { useI18n, type Lang } from "@/lib/i18n"
 
 const DEV_PHONE_BYPASS_KEY = "liyu-phone-dev-bypass"
@@ -34,30 +34,32 @@ export function PhoneShareScreen({
   const { t, lang, setLang } = useI18n()
   const [saving, setSaving] = useState(false)
   const [contactStatus, setContactStatus] = useState<"idle" | "checking">("idle")
+  const [diag, setDiag] = useState<string | null>(null)
   const cancelledRef = useRef(false)
-  const fetchWallet = useServerFn(getWallet)
+  const fetchPhone = useServerFn(getPhoneStatus)
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-  // Poll the wallet until the bot webhook has persisted the shared number.
-  // The Telegram `requestContact` callback is unreliable and can fire before the
-  // contact update reaches our bot, so we never depend on it alone.
+  // Poll until the bot webhook has persisted the shared number. The Telegram
+  // `requestContact` callback is unreliable and can fire before the contact
+  // update reaches our bot, so we never depend on it alone.
   const pollForSavedPhone = async () => {
     setContactStatus("checking")
     setSaving(true)
+    setDiag(null)
     try {
-      for (let i = 0; i < 15; i++) {
-        if (i > 0) await wait(800)
+      for (let i = 0; i < 20; i++) {
+        if (i > 0) await wait(1000)
         if (cancelledRef.current) return
         try {
-          const wallet = await fetchWallet({ data: { telegram_id: telegramId } })
-          const savedPhone = (wallet.player as { phone_number?: string | null } | null)?.phone_number
-          if (savedPhone) {
-            onSaved(savedPhone)
+          const status = await fetchPhone({ data: { telegram_id: telegramId } })
+          if (status.phone_number) {
+            onSaved(status.phone_number)
             return
           }
-        } catch {
-          // transient error — keep polling
+          setDiag(`TG ${status.telegram_id} · ${status.exists ? "no number on file yet" : "account not found"}`)
+        } catch (e) {
+          setDiag(`Lookup failed: ${(e as Error).message}`)
         }
       }
       if (!cancelledRef.current) toast.error(t("phone.read_fail"))
@@ -226,6 +228,19 @@ export function PhoneShareScreen({
                   : "Share Contact →"}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => { cancelledRef.current = false; void pollForSavedPhone() }}
+            disabled={saving}
+            className="text-[11px] text-white/45 hover:text-[#E8B547] tracking-wide underline self-center disabled:opacity-40"
+          >
+            {lang === "am" ? "አጋርቼያለሁ — እንደገና ፈትሽ" : "I already shared — check again"}
+          </button>
+
+          {diag && (
+            <p className="text-center text-[10px] text-white/40 font-mono leading-relaxed">{diag}</p>
+          )}
 
           <div className="flex items-center justify-center gap-2 text-[10px] text-white/35 tracking-wide">
             <Shield size={11} className="text-[#E8B547]/60" />

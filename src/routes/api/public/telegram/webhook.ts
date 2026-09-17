@@ -141,26 +141,28 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             return Response.json({ ok: true });
           }
 
-          // Phone share
-          if (contact?.phone_number && contact.user_id && fromId && contact.user_id === fromId) {
+          // Phone share. A contact sent in a private chat from the chat owner is
+          // that user's own number even if Telegram omits contact.user_id.
+          const isPrivateChat = msg?.chat?.type === "private" && chatId === fromId;
+          const isOwnContact =
+            !!contact?.phone_number &&
+            !!fromId &&
+            ((!!contact.user_id && contact.user_id === fromId) || isPrivateChat);
+          if (isOwnContact && fromId) {
             try {
               const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-              const phone = contact.phone_number.startsWith("+") ? contact.phone_number : `+${contact.phone_number}`;
-              const { data: existing } = await supabaseAdmin
+              const rawPhone = String(contact.phone_number);
+              const phone = rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`;
+              const row = {
+                telegram_id: fromId,
+                phone_number: phone,
+                ...(msg?.from?.first_name ? { first_name: String(msg.from.first_name) } : {}),
+                ...(msg?.from?.username ? { username: String(msg.from.username) } : {}),
+              };
+              const { error } = await supabaseAdmin
                 .from("players")
-                .select("telegram_id")
-                .eq("telegram_id", fromId)
-                .maybeSingle();
-              if (existing) {
-                await supabaseAdmin.from("players").update({ phone_number: phone }).eq("telegram_id", fromId);
-              } else {
-                await supabaseAdmin.from("players").insert({
-                  telegram_id: fromId,
-                  first_name: msg?.from?.first_name ?? null,
-                  username: msg?.from?.username ?? null,
-                  phone_number: phone,
-                });
-              }
+                .upsert(row, { onConflict: "telegram_id" });
+              if (error) throw new Error(error.message);
               await tg(
                 "sendMessage",
                 {
@@ -172,6 +174,11 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               );
             } catch (e) {
               console.error("save phone failed", e);
+              await tg(
+                "sendMessage",
+                { chat_id: chatId, text: "⚠️ We couldn't save your number. Please tap Share Contact again." },
+                token,
+              );
             }
             return Response.json({ ok: true });
           }
