@@ -63,6 +63,14 @@ function readTelegramUser(): TelegramUser | null {
   }
 }
 
+// True only when running inside a real Telegram Mini App session. In a plain
+// browser (or a preview) Telegram's script still defines WebApp, but initData is
+// empty — and any id derived there would not match our server-side records.
+export function isTelegramWebApp(): boolean {
+  if (typeof window === "undefined") return false
+  return !!window.Telegram?.WebApp?.initData
+}
+
 export function useTelegramUser(): TelegramUser | null {
   const [user, setUser] = useState<TelegramUser | null>(null)
 

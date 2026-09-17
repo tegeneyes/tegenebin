@@ -47,6 +47,7 @@ export function PhoneShareScreen({
     setContactStatus("checking")
     setSaving(true)
     setDiag(null)
+    let lastDiag: string | null = null
     try {
       for (let i = 0; i < 20; i++) {
         if (i > 0) await wait(1000)
@@ -57,12 +58,15 @@ export function PhoneShareScreen({
             onSaved(status.phone_number)
             return
           }
-          setDiag(`TG ${status.telegram_id} · ${status.exists ? "no number on file yet" : "account not found"}`)
+          lastDiag = `TG ${status.telegram_id} · ${status.exists ? "no number on file yet" : "account not found"}`
         } catch (e) {
-          setDiag(`Lookup failed: ${(e as Error).message}`)
+          lastDiag = `lookup failed: ${(e as Error).message}`
         }
+        setDiag(lastDiag)
       }
-      if (!cancelledRef.current) toast.error(t("phone.read_fail"))
+      if (!cancelledRef.current) {
+        toast.error(lastDiag ? `${t("phone.read_fail")} (${lastDiag})` : t("phone.read_fail"))
+      }
     } finally {
       setSaving(false)
       setContactStatus("idle")

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { useBingoGame } from "@/hooks/use-bingo-game";
-import { useTelegramUser } from "@/hooks/use-telegram-user";
+import { useTelegramUser, isTelegramWebApp } from "@/hooks/use-telegram-user";
 import { useLobbyPresence } from "@/hooks/use-lobby-presence";
 import { ensurePlayer, getWallet } from "@/lib/wallet.functions";
 import { finishGame, startGame } from "@/lib/game.functions";
@@ -212,8 +212,9 @@ function BingoAppInner() {
     return <SplashScreen onDone={() => setSplashDone(true)} />;
   }
 
-  // Ask for phone number once, before entering the app
-  if (tg && hasPhone === false) {
+  // Ask for phone number once, before entering the app. Only meaningful with a
+  // real Telegram identity — a browser/preview session has no shareable contact.
+  if (tg && hasPhone === false && isTelegramWebApp()) {
     return <PhoneShareScreen telegramId={tg.id} firstName={tg.first_name} onSaved={() => setHasPhone(true)} />;
   }
 
