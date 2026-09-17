@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Shield } from "lucide-react"
 import { toast } from "sonner"
@@ -34,26 +34,33 @@ export function PhoneShareScreen({
   const { t, lang, setLang } = useI18n()
   const [saving, setSaving] = useState(false)
   const [contactStatus, setContactStatus] = useState<"idle" | "checking">("idle")
+  const cancelledRef = useRef(false)
   const fetchWallet = useServerFn(getWallet)
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-  const checkSavedTelegramPhone = async () => {
+  // Poll the wallet until the bot webhook has persisted the shared number.
+  // The Telegram `requestContact` callback is unreliable and can fire before the
+  // contact update reaches our bot, so we never depend on it alone.
+  const pollForSavedPhone = async () => {
     setContactStatus("checking")
     setSaving(true)
     try {
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 15; i++) {
         if (i > 0) await wait(800)
-        const wallet = await fetchWallet({ data: { telegram_id: telegramId } })
-        const savedPhone = (wallet.player as { phone_number?: string | null } | null)?.phone_number
-        if (savedPhone) {
-          onSaved(savedPhone)
-          return
+        if (cancelledRef.current) return
+        try {
+          const wallet = await fetchWallet({ data: { telegram_id: telegramId } })
+          const savedPhone = (wallet.player as { phone_number?: string | null } | null)?.phone_number
+          if (savedPhone) {
+            onSaved(savedPhone)
+            return
+          }
+        } catch {
+          // transient error — keep polling
         }
       }
-      toast.error(t("phone.read_fail"))
-    } catch {
-      toast.error(t("phone.read_fail"))
+      if (!cancelledRef.current) toast.error(t("phone.read_fail"))
     } finally {
       setSaving(false)
       setContactStatus("idle")
@@ -61,6 +68,7 @@ export function PhoneShareScreen({
   }
 
   const requestTelegramContact = () => {
+    cancelledRef.current = false
     const tg = typeof window !== "undefined" ? window.Telegram?.WebApp : undefined
     if (!tg?.requestContact) {
       toast.error(t("phone.not_avail"))
@@ -69,15 +77,18 @@ export function PhoneShareScreen({
     try {
       tg.requestContact((ok) => {
         if (!ok) {
+          cancelledRef.current = true
           toast.info(t("phone.cancelled"))
           return
         }
         toast.success(t("phone.shared_saving"))
-        onSaved("shared")
       })
     } catch {
       toast.error(t("phone.not_avail"))
+      return
     }
+    // Advance as soon as the saved number shows up, even if the callback never fires.
+    void pollForSavedPhone()
   }
 
   const skipInDev = () => {

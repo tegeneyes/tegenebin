@@ -1,14 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { isAdminId } from "@/lib/admin"
 
 const TelegramIdSchema = z.union([z.string(), z.number()]).transform(v => Number(v)).refine(n => Number.isFinite(n) && n > 0, "invalid telegram_id")
-
-const HARDCODED_ADMIN_IDS = [723559736]
-function isAdmin(telegramId: number): boolean {
-  const raw = process.env.ADMIN_TELEGRAM_IDS || ""
-  const ids = raw.split(",").map(s => s.trim()).filter(Boolean).map(Number).filter(n => Number.isFinite(n) && n > 0 && n < 1e13)
-  return new Set<number>([...HARDCODED_ADMIN_IDS, ...ids]).has(telegramId)
-}
 
 // ───────── Announcement (lobby banner) ─────────
 
@@ -28,7 +22,7 @@ export const getActiveAnnouncement = createServerFn({ method: "GET" })
 export const adminListAnnouncements = createServerFn({ method: "POST" })
   .inputValidator((d: { admin_id: string | number }) => ({ admin_id: TelegramIdSchema.parse(d.admin_id) }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: rows, error } = await supabaseAdmin
       .from("announcements")
@@ -45,7 +39,7 @@ export const adminSetAnnouncement = createServerFn({ method: "POST" })
     message: z.string().trim().min(2, "Message is too short").max(500, "Message too long").parse(d.message),
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     // Deactivate any existing active banner so only one shows in the lobby.
     await supabaseAdmin.from("announcements").update({ active: false }).eq("active", true)
@@ -61,7 +55,7 @@ export const adminSetAnnouncement = createServerFn({ method: "POST" })
 export const adminClearAnnouncement = createServerFn({ method: "POST" })
   .inputValidator((d: { admin_id: string | number }) => ({ admin_id: TelegramIdSchema.parse(d.admin_id) }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { error } = await supabaseAdmin.from("announcements").update({ active: false }).eq("active", true)
     if (error) throw new Error(error.message)
@@ -76,7 +70,7 @@ export const adminBroadcast = createServerFn({ method: "POST" })
     text: z.string().trim().min(2, "Message is too short").max(3500, "Message too long").parse(d.text),
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const token = process.env.TELEGRAM_BOT_TOKEN
     if (!token) throw new Error("Bot not configured")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
@@ -109,7 +103,7 @@ export const adminBonusDrop = createServerFn({ method: "POST" })
     notify: d.notify ?? true,
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: drop, error } = await supabaseAdmin.rpc("drop_bonus_to_all", {
       _amount: data.amount,
@@ -141,7 +135,7 @@ export const adminBonusDrop = createServerFn({ method: "POST" })
 export const adminListBonusDrops = createServerFn({ method: "POST" })
   .inputValidator((d: { admin_id: string | number }) => ({ admin_id: TelegramIdSchema.parse(d.admin_id) }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: rows, error } = await supabaseAdmin
       .from("bonus_drops")
@@ -160,7 +154,7 @@ export const adminListPlayers = createServerFn({ method: "POST" })
     search: z.string().trim().max(100).optional().parse(d.search),
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     let q = supabaseAdmin
       .from("players")
@@ -185,7 +179,7 @@ export const adminPlayerGames = createServerFn({ method: "POST" })
     telegram_id: TelegramIdSchema.parse(d.telegram_id),
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: rows, error } = await supabaseAdmin
       .from("game_results")
@@ -220,7 +214,7 @@ export const adminSetBanned = createServerFn({ method: "POST" })
     reason: z.string().trim().max(300).optional().parse(d.reason),
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const patch = {
       banned: data.banned,

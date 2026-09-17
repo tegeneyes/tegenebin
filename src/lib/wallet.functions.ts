@@ -1,15 +1,9 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { isAdminId } from "@/lib/admin"
+import { TELEBIRR_PHONE, CBE_ACCOUNT, ACCOUNT_NAME } from "@/lib/payment-config"
 
 const TelegramIdSchema = z.union([z.string(), z.number()]).transform(v => Number(v)).refine(n => Number.isFinite(n) && n > 0, "invalid telegram_id")
-
-const HARDCODED_ADMIN_IDS = [723559736]
-function isAdmin(telegramId: number): boolean {
-  const raw = process.env.ADMIN_TELEGRAM_IDS || ""
-  const ids = raw.split(",").map(s => s.trim()).filter(Boolean).map(Number).filter(n => Number.isFinite(n) && n > 0 && n < 1e13)
-  const all = new Set<number>([...HARDCODED_ADMIN_IDS, ...ids])
-  return all.has(telegramId)
-}
 
 // ───────── User-facing ─────────
 
@@ -57,7 +51,6 @@ export const requestDeposit = createServerFn({ method: "POST" })
     proof_text?: string
     reference?: string
     account_suffix?: string
-    promo_code?: string
   }) => {
     const s = z.object({
       telegram_id: TelegramIdSchema,
@@ -69,7 +62,6 @@ export const requestDeposit = createServerFn({ method: "POST" })
       proof_text: z.string().trim().min(10, "Please paste the full confirmation SMS").max(2000, "SMS text is too long"),
       reference: z.string().trim().max(40).regex(/^[A-Za-z0-9]*$/, "The reference should contain only letters and numbers").optional(),
       account_suffix: z.string().trim().max(10).regex(/^[0-9]*$/, "Account suffix must be digits").optional(),
-      promo_code: z.string().max(50).optional(),
     }).safeParse(d)
     if (!s.success) {
       throw new Error(s.error.issues[0]?.message ?? "Invalid input")
@@ -90,7 +82,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
     const provider = parsed.provider
 
     // 1. Money must have gone to OUR account.
-    const destinations = provider === "telebirr" ? [DEST_TELEBIRR_PHONE] : [DEST_CBE_ACCOUNT]
+    const destinations = provider === "telebirr" ? [TELEBIRR_PHONE] : [CBE_ACCOUNT]
     if (parsed.recipient_account) {
       if (!accountMatches(parsed.recipient_account, destinations)) {
         throw new Error(`This transfer was not sent to our ${provider === "telebirr" ? "telebirr number" : "CBE account"}. Only payments to the account shown in Payment Details are accepted.`)
@@ -99,7 +91,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
       // Newer CBE SMS hides the recipient account — without Veritas we cannot prove the destination.
       throw new Error("We couldn't confirm the destination account from this SMS. Please try again shortly or contact support.")
     }
-    if (parsed.recipient_name && !parsed.recipient_name.includes(DEST_NAME.toLowerCase())) {
+    if (parsed.recipient_name && !parsed.recipient_name.includes(ACCOUNT_NAME.toLowerCase())) {
       throw new Error("The recipient name in this SMS does not match our account. Only payments to the account shown in Payment Details are accepted.")
     }
 
@@ -171,11 +163,6 @@ export const requestDeposit = createServerFn({ method: "POST" })
     }
     return { ...(approved as any), verified: true, message: "Deposit verified and credited." }
   })
-
-// Deposit destinations — must match src/lib/deposit-config.functions.ts
-const DEST_TELEBIRR_PHONE = "0907633801"
-const DEST_CBE_ACCOUNT = "1000604178669"
-const DEST_NAME = "Tegene"
 
 export const requestWithdrawal = createServerFn({ method: "POST" })
   .inputValidator((d: {
@@ -251,7 +238,7 @@ export const adminListTransactions = createServerFn({ method: "POST" })
     status: d.status,
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     let q = supabaseAdmin.from("transactions").select("*").order("created_at", { ascending: false }).limit(200)
     if (data.status) q = q.eq("status", data.status)
@@ -268,7 +255,7 @@ export const adminProcessTransaction = createServerFn({ method: "POST" })
     note: d.note?.toString().slice(0, 500) ?? undefined,
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: tx, error } = await supabaseAdmin.rpc("process_transaction", {
       _tx_id: data.tx_id,
@@ -282,7 +269,7 @@ export const adminProcessTransaction = createServerFn({ method: "POST" })
 export const adminListPromos = createServerFn({ method: "POST" })
   .inputValidator((d: { admin_id: string | number }) => ({ admin_id: TelegramIdSchema.parse(d.admin_id) }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: list, error } = await supabaseAdmin.from("promo_codes").select("*").order("created_at", { ascending: false })
     if (error) throw new Error(error.message)
@@ -306,7 +293,7 @@ export const adminCreatePromo = createServerFn({ method: "POST" })
     expires_at: d.expires_at ?? null,
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: row, error } = await supabaseAdmin.from("promo_codes").insert({
       code: data.code,
@@ -352,7 +339,7 @@ export const adminTogglePromo = createServerFn({ method: "POST" })
     active: z.boolean().parse(d.active),
   }))
   .handler(async ({ data }) => {
-    if (!isAdmin(data.admin_id)) throw new Error("Forbidden")
+    if (!isAdminId(data.admin_id)) throw new Error("Forbidden")
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const { data: row, error } = await supabaseAdmin.from("promo_codes").update({ active: data.active }).eq("id", data.id).select().single()
     if (error) throw new Error(error.message)

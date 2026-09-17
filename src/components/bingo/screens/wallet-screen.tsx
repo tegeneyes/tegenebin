@@ -7,6 +7,7 @@ import { ScreenWrapper } from "@/components/bingo/screen-wrapper"
 import { useTelegramUser } from "@/hooks/use-telegram-user"
 import { ensurePlayer, getWallet, requestDeposit, requestWithdrawal, redeemPromo } from "@/lib/wallet.functions"
 import { getDepositInstructions } from "@/lib/deposit-config.functions"
+import { TELEBIRR_PHONE, CBE_ACCOUNT, ACCOUNT_NAME } from "@/lib/payment-config"
 import { useI18n } from "@/lib/i18n"
 
 type Tab = "balance" | "deposit" | "withdraw" | "promo" | "history"
@@ -25,8 +26,8 @@ type DepositConfig = { telebirr: { phone: string; name: string }; cbe: { account
 
 // Static deposit destinations so the info renders instantly (no fetch wait).
 const DEFAULT_CONFIG: DepositConfig = {
-  telebirr: { phone: "0907633801", name: "Tegene" },
-  cbe: { account_number: "1000604178669", account_name: "Tegene" },
+  telebirr: { phone: TELEBIRR_PHONE, name: ACCOUNT_NAME },
+  cbe: { account_number: CBE_ACCOUNT, account_name: ACCOUNT_NAME },
 }
 
 // Module-level cache so config & wallet data persist across tab switches and remounts.

@@ -202,51 +202,16 @@ export function useBingoGame() {
   const callNextNumber = useCallback(() => {
     if (gameMode !== "playing" && gameMode !== "watching") return
     if (calledNumbers.length >= MAX_CALLS) return
-
-    let nextNum: number
-    do {
-      nextNum = Math.floor(Math.random() * 75) + 1
-    } while (calledNumbers.includes(nextNum))
+    // Single source of truth: the manual caller draws from the same gameSequence
+    // as the time-driven caller, so the two can never disagree. Auto-marking and
+    // bingo detection are handled by the effect that watches calledNumbers.
+    const nextNum = gameSequence[calledNumbers.length]
+    if (typeof nextNum !== "number" || calledNumbers.includes(nextNum)) return
 
     const newCalled = [nextNum, ...calledNumbers]
     setCalledNumbers(newCalled)
-    setGameStats(prev => ({ ...prev, calledCount: prev.calledCount + 1 }))
-
-    if (automatic && gameMode === "playing") {
-      const newCartelas = [...cartelas]
-      
-      newCartelas.forEach((cartela, idx) => {
-        const newCard = cloneCard(cartela.card)
-        let markedAny = false
-        newCard.forEach((row) => {
-          row.forEach((cell) => {
-            if (cell.number === nextNum) {
-              cell.marked = true
-              markedAny = true
-            }
-          })
-        })
-        if (markedAny) {
-          newCartelas[idx] = { ...cartela, card: newCard }
-        }
-      })
-      
-      if (newCartelas.some((c, i) => c.card !== cartelas[i].card)) {
-        setCartelas(newCartelas)
-        
-        // Check for bingo after auto-marking
-        for (const cartela of newCartelas) {
-          if (checkBingo(cartela.card)) {
-            setWinningCartela(cartela) // Set the winning cartela
-            setWinningDisplayName(null)
-            setWinnerIsCurrentUser(true)
-            setShowWinModal(true)
-            break
-          }
-        }
-      }
-    }
-  }, [automatic, calledNumbers, cartelas, gameMode])
+    setGameStats(prev => ({ ...prev, calledCount: newCalled.length }))
+  }, [calledNumbers, gameMode, gameSequence])
 
   const showRandomWinner = useCallback(() => {
     const winningCalls = gameSequence.slice(0, MAX_CALLS)

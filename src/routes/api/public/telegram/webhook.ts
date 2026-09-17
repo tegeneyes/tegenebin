@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash, timingSafeEqual } from "crypto";
+import { getAdminIds } from "@/lib/admin";
 
 function deriveSecret(token: string) {
   return createHash("sha256").update(`telegram-webhook:${token}`).digest("base64url");
@@ -21,7 +22,6 @@ async function tg(method: string, body: unknown, token: string) {
 
 const BOT_USERNAME = "liyubingobot";
 const APP_URL = process.env.APP_URL || process.env.PUBLIC_APP_URL || "http://localhost:8080";
-const HARDCODED_ADMIN_IDS = [723559736];
 
 function helpText(isAm: boolean) {
   return isAm
@@ -33,17 +33,6 @@ function helpText(isAm: boolean) {
         `/start — launch the bingo mini-app\n` +
         `/invite — get your invite link (+10 ETB per friend)\n` +
         `/help — show this message`;
-}
-
-function getAdminIds(): Set<number> {
-  const raw = process.env.ADMIN_TELEGRAM_IDS || "";
-  const ids = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map(Number)
-    .filter((n) => Number.isFinite(n) && n > 0);
-  return new Set<number>([...HARDCODED_ADMIN_IDS, ...ids]);
 }
 
 // Parse `---` separator: text/caption above, button pairs (title\nurl) below.

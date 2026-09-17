@@ -141,6 +141,29 @@ function BingoAppInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tg?.id]);
 
+  // If the contact was shared but the screen didn't advance, re-check whenever
+  // the mini app regains focus (covers the bot-update arriving late).
+  useEffect(() => {
+    if (hasPhone !== false || !tg) return;
+    const recheck = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      try {
+        const w = await fetchWallet({ data: { telegram_id: tg.id } });
+        const p = w.player as { phone_number?: string | null } | null;
+        if (p?.phone_number) setHasPhone(true);
+      } catch {
+        /* ignore */
+      }
+    };
+    document.addEventListener("visibilitychange", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("focus", recheck);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPhone, tg?.id]);
+
   // Record the player's result whenever their selected game ends.
   useEffect(() => {
     if (!game.showWinModal || !game.winningCartela || !tg || game.cartelas.length === 0) return;
