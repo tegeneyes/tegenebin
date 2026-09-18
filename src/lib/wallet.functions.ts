@@ -230,15 +230,25 @@ export const requestDeposit = createServerFn({ method: "POST" })
     }
 
     const v = await veritasVerify(receipt.reference, provider)
+
+    // Transient service problems → queue for manual review (the payment is real).
+    if (!v.approved && /unreachable|bad response|abort|timeout|fetch/i.test(v.error)) {
+      await noteAutoFallback(`Auto-verify unavailable: ${v.error}`)
+      return submitForReview(`Auto-verify unavailable: ${v.error}`)
+    }
+
     const check = veritasCheck(v, provider)
     if (!check.ok || !check.amount) {
-      await noteAutoFallback(`Auto-verify failed: ${check.reason}`)
-      return submitForReview(`Auto-verify failed: ${check.reason}`)
+      // Definitive verification failure (not found / wrong account / bad amount).
+      await noteAutoFallback(`Auto-verify rejected: ${check.reason}`)
+      throw new Error(`We could not verify this receipt (${check.reason}). Deposit rejected.`)
     }
-    // Receipt may show the net (settled) amount; allow up to 1 ETB fee difference.
+
+    // The verified amount is authoritative — it must match the receipt/entered
+    // amount. This is what stops a doctored SMS (e.g. 100 -> 1000).
     if (Math.abs(check.amount - amount) > 1) {
-      await noteAutoFallback(`Auto-verify amount mismatch (${check.amount} vs ${amount})`)
-      return submitForReview(`Auto-verify amount mismatch (${check.amount} vs ${amount})`)
+      await noteAutoFallback(`Auto-verify amount mismatch (verified ${check.amount} vs ${amount})`)
+      throw new Error(`Verification shows ${check.amount.toFixed(2)} ETB but this receipt says ${amount.toFixed(2)} ETB. Deposit rejected.`)
     }
 
     // Verified — record + credit atomically.
