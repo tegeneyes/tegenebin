@@ -30,7 +30,7 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
   const livePlayers = useLobbyPresence({ telegramId: tg?.id, stake: 0, enabled: !!tg, username: tg?.username || tg?.first_name })
   // Stable per-minute baseline so the count "breathes" naturally
   const onlineSeed = `lobby:${Math.floor(Date.now() / 60000)}`
-  const onlineNow = paddedCount(livePlayers, onlineSeed, 18, 32)
+  const onlineNow = paddedCount(livePlayers, onlineSeed, 60, 200)
 
   useEffect(() => {
     let active = true
@@ -83,10 +83,17 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="relative w-full max-w-md mb-3 rounded-2xl border border-bingo-gold/40 bg-gradient-to-r from-bingo-gold/15 via-bingo-magenta/10 to-bingo-gold/15 px-3 py-2.5 flex items-start gap-2.5 shadow-[0_0_24px_rgba(252,210,107,0.15)]"
+              className="relative w-full max-w-md mb-3 rounded-2xl border border-bingo-gold/40 bg-gradient-to-r from-bingo-gold/15 via-bingo-magenta/10 to-bingo-gold/15 overflow-hidden shadow-[0_0_24px_rgba(252,210,107,0.15)]"
             >
-              <Megaphone size={16} className="text-bingo-gold-soft shrink-0 mt-0.5" />
-              <p className="text-[12px] leading-snug text-white/90 whitespace-pre-wrap">{announcement.message}</p>
+              <div className="flex items-center gap-2.5 px-3 py-2.5">
+                <Megaphone size={16} className="text-bingo-gold-soft shrink-0" />
+                <div className="relative flex-1 overflow-hidden">
+                  <div className="marquee-track">
+                    <span className="text-[12px] leading-snug text-white/90 pr-12">{announcement.message}</span>
+                    <span className="text-[12px] leading-snug text-white/90 pr-12" aria-hidden="true">{announcement.message}</span>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

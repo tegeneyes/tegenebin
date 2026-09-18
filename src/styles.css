@@ -297,6 +297,21 @@ html, body {
   animation: shimmer 4s linear infinite;
 }
 
+/* Announcement carousel / marquee */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@utility marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  width: max-content;
+  animation: marquee 22s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
+
 /* ===========================
    HIDE LOVABLE BADGE / WIDGET
    =========================== */
