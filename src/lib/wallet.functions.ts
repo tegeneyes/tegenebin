@@ -94,6 +94,8 @@ export const requestDeposit = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { veritasVerify, veritasCheck, veritasLimits } = await import("@/lib/veritas.server")
+    const { parseSms, accountMatches } = await import("@/lib/sms-parser")
 
     // Banned players cannot deposit.
     const { data: player } = await supabaseAdmin.from("players").select("phone_number, banned").eq("telegram_id", data.telegram_id).maybeSingle()
@@ -114,20 +116,59 @@ export const requestDeposit = createServerFn({ method: "POST" })
       }
     }
 
+    const limits = veritasLimits()
+
+    // Parse the receipt once and validate it the SAME way in both modes, so a
+    // receipt that shows a different amount or account can never be credited.
+    const parsed = parseSms(data.proof_text ?? "")
+    const receipt = parsed.matched && parsed.reference && parsed.amount && parsed.provider
+      ? {
+          reference: parsed.reference,
+          amount: parsed.amount,
+          provider: parsed.provider,
+          recipient_account: parsed.recipient_account,
+          recipient_name: parsed.recipient_name,
+        }
+      : null
+
+    const reference: string | null = receipt ? receipt.reference : ((data.reference?.trim() || null)?.toUpperCase() ?? null)
+    const provider: "telebirr" | "cbe" = receipt ? receipt.provider : data.provider
+    const amount = receipt ? receipt.amount : data.amount
+
+    if (receipt) {
+      // 1. Money must have gone to OUR account.
+      const destinations = provider === "telebirr" ? [TELEBIRR_PHONE] : [CBE_ACCOUNT]
+      if (receipt.recipient_account && !accountMatches(receipt.recipient_account, destinations)) {
+        throw new Error(`This transfer was not sent to our ${provider === "telebirr" ? "telebirr number" : "CBE account"}. Only payments to the account shown in Payment Details are accepted.`)
+      }
+      if (receipt.recipient_name && !receipt.recipient_name.includes(ACCOUNT_NAME.toLowerCase())) {
+        throw new Error("The recipient name in this SMS does not match our account. Only payments to the account shown in Payment Details are accepted.")
+      }
+      // 2. The receipt amount is authoritative and must match what was entered.
+      if (Math.abs(receipt.amount - data.amount) > 0.009) {
+        throw new Error(`The SMS shows ${receipt.amount.toFixed(2)} ETB but you entered ${data.amount.toFixed(2)} ETB. Enter the exact amount you transferred.`)
+      }
+    }
+
+    // 3. Minimum / maximum apply to the amount actually sent.
+    if (amount < limits.min) throw new Error(`Minimum deposit is ${limits.min} ETB.`)
+    if (amount > limits.max) throw new Error(`Maximum deposit is ${limits.max} ETB.`)
+
+    // 4. Anti-replay: a receipt/reference can only ever be used once.
+    if (reference) {
+      const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
+      if (dup && dup.length > 0) throw new Error("This receipt has already been used. Each receipt can only be deposited once.")
+    }
+
     // Queue a deposit for admin review. Used directly in manual mode, and as the
     // fallback whenever automatic verification cannot confirm the payment.
-    const submitForReview = async (note?: string, providerOverride?: "telebirr" | "cbe") => {
-      const reference = (data.reference?.trim() || null)?.toUpperCase() ?? null
-      if (reference) {
-        const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
-        if (dup && dup.length > 0) throw new Error("This reference has already been used.")
-      }
+    const submitForReview = async (note?: string) => {
       const { data: tx, error } = await supabaseAdmin.from("transactions").insert({
         telegram_id: data.telegram_id,
         type: "deposit",
-        amount: data.amount,
+        amount,
         status: "pending",
-        provider: providerOverride ?? data.provider,
+        provider,
         phone_number: data.phone_number ?? null,
         proof_text: data.proof_text ?? null,
         reference,
@@ -135,7 +176,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
       }).select().single()
       if (error) {
         if (/duplicate key|unique constraint/i.test(error.message || "")) {
-          throw new Error("This reference has already been used.")
+          throw new Error("This receipt has already been used. Each receipt can only be deposited once.")
         }
         console.error("deposit insert failed:", error.message)
         throw new Error("Could not submit your deposit right now. Please try again in a moment.")
@@ -152,54 +193,17 @@ export const requestDeposit = createServerFn({ method: "POST" })
     if (!DEPOSIT_AUTO_VERIFY) return submitForReview()
 
     // ───── Auto-verify path (DEPOSIT_AUTO_VERIFY=true) ─────
-    const { veritasVerify, veritasCheck, veritasLimits } = await import("@/lib/veritas.server")
-    const { parseSms, accountMatches } = await import("@/lib/sms-parser")
+    if (!receipt) return submitForReview("Auto-verify: SMS not recognised")
+    if (!limits.enabled) return submitForReview("Auto-verify not configured")
 
-    const parsed = parseSms(data.proof_text ?? "")
-    if (!parsed.matched || !parsed.reference || !parsed.amount || !parsed.provider) {
-      // Can't read it automatically — let an admin review it instead of failing.
-      return submitForReview("Auto-verify: SMS not recognised")
-    }
-    const reference = parsed.reference
-    const provider = parsed.provider
-
-    // Money must have gone to OUR account — a clear reject if it didn't.
-    const destinations = provider === "telebirr" ? [TELEBIRR_PHONE] : [CBE_ACCOUNT]
-    if (parsed.recipient_account && !accountMatches(parsed.recipient_account, destinations)) {
-      throw new Error(`This transfer was not sent to our ${provider === "telebirr" ? "telebirr number" : "CBE account"}. Only payments to the account shown in Payment Details are accepted.`)
-    }
-    if (parsed.recipient_name && !parsed.recipient_name.includes(ACCOUNT_NAME.toLowerCase())) {
-      throw new Error("The recipient name in this SMS does not match our account. Only payments to the account shown in Payment Details are accepted.")
-    }
-
-    // Amount checks — the SMS amount is authoritative.
-    const smsAmount = parsed.amount
-    if (Math.abs(smsAmount - data.amount) > 0.009) {
-      throw new Error(`The SMS shows ${smsAmount.toFixed(2)} ETB but you entered ${data.amount.toFixed(2)} ETB. Enter the exact amount you transferred.`)
-    }
-    const limits = veritasLimits()
-    if (smsAmount < limits.min) throw new Error(`Minimum deposit is ${limits.min} ETB.`)
-    if (smsAmount > limits.max) throw new Error(`Maximum deposit is ${limits.max} ETB.`)
-
-    // Anti-replay: a reference can only ever be used once (also enforced by a unique index).
-    {
-      const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
-      if (dup && dup.length > 0) throw new Error("This SMS has already been used. Each receipt can only be deposited once.")
-    }
-
-    // Veritas verification. Anything we cannot confirm automatically falls back
-    // to manual review, so a service hiccup never blocks the player.
-    if (!limits.enabled) {
-      return submitForReview("Auto-verify not configured", provider)
-    }
-    const v = await veritasVerify(reference, provider)
+    const v = await veritasVerify(receipt.reference, provider)
     const check = veritasCheck(v, provider)
     if (!check.ok || !check.amount) {
-      return submitForReview(`Auto-verify failed: ${check.reason}`, provider)
+      return submitForReview(`Auto-verify failed: ${check.reason}`)
     }
     // Receipt may show the net (settled) amount; allow up to 1 ETB fee difference.
-    if (Math.abs(check.amount - smsAmount) > 1) {
-      return submitForReview(`Auto-verify amount mismatch (${check.amount} vs ${smsAmount})`, provider)
+    if (Math.abs(check.amount - amount) > 1) {
+      return submitForReview(`Auto-verify amount mismatch (${check.amount} vs ${amount})`)
     }
 
     // Verified — record + credit atomically.
@@ -207,7 +211,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
     const { data: tx, error } = await supabaseAdmin.from("transactions").insert({
       telegram_id: data.telegram_id,
       type: "deposit",
-      amount: smsAmount,
+      amount,
       status: "pending",
       provider,
       phone_number: data.phone_number ?? null,
@@ -216,7 +220,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
     }).select().single()
     if (error) {
       if (/duplicate key|unique constraint/i.test(error.message || "")) {
-        throw new Error("This SMS has already been used. Each receipt can only be deposited once.")
+        throw new Error("This receipt has already been used. Each receipt can only be deposited once.")
       }
       console.error("deposit insert failed:", error.message)
       throw new Error("Could not process your deposit right now. Please try again in a moment.")
