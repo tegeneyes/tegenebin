@@ -12,6 +12,7 @@ interface CartelaSelectionScreenProps {
   onBack: () => void
   onConfirm: (selectedCartelas: Cartela[]) => void
   onWatch: () => void
+  onTopUp: () => void
   stake: number
   playBalance: number
   mainBalance: number
@@ -33,6 +34,7 @@ export function CartelaSelectionScreen({
   onBack,
   onConfirm,
   onWatch,
+  onTopUp,
   stake,
   playBalance,
   mainBalance,
@@ -94,7 +96,7 @@ export function CartelaSelectionScreen({
     } else if (selectedCartelas.length < maxCartelas) {
       setSelectedCartelas(prev => [...prev, cartela])
     } else {
-      toast.error(t("sel.max_warn", { n: maxCartelas }))
+      toast.error(maxCartelas === 0 ? t("sel.insufficient") : t("sel.max_warn", { n: maxCartelas }))
     }
   }
 
@@ -170,9 +172,13 @@ export function CartelaSelectionScreen({
       {/* Timer and Selection Status - Compact */}
       <div className="px-4 py-1 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-white text-xs font-medium">
-            {t("sel.selected")}: <span className="text-bingo-gold font-bold">{selectedCartelas.length}</span>/{maxCartelas}
-          </span>
+          {maxCartelas > 0 ? (
+            <span className="text-white text-xs font-medium">
+              {t("sel.selected")}: <span className="text-bingo-gold font-bold">{selectedCartelas.length}</span>/{maxCartelas}
+            </span>
+          ) : (
+            <span className="text-bingo-red text-xs font-bold">{t("sel.insufficient")}</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
@@ -296,7 +302,16 @@ export function CartelaSelectionScreen({
           </div>
         </div>
         {maxCartelas === 0 ? (
-          <p className="text-bingo-red text-[11px] text-center mt-2">{t("sel.insufficient")}</p>
+          <div className="mt-2 space-y-2">
+            <p className="text-bingo-red text-[11px] text-center font-bold">{t("sel.insufficient")}</p>
+            <button
+              type="button"
+              onClick={onTopUp}
+              className="w-full py-2.5 rounded-xl bg-bingo-green text-bingo-deep-purple font-black text-xs uppercase tracking-wider"
+            >
+              {t("sel.topup")}
+            </button>
+          </div>
         ) : (
           <>
             {!canAfford && selectedCartelas.length > 0 && (

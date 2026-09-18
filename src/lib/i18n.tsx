@@ -45,6 +45,7 @@ const en: Dict = {
   "sel.total_cost": "Total Cost",
   "sel.starts_in": "Game Starts In",
   "sel.insufficient": "Insufficient balance",
+  "sel.topup": "Top up wallet",
   "sel.pick_before": "Pick up to {n} cartelas before time runs out",
   "sel.max_warn": "You can only choose up to {n} cartelas.",
 
@@ -218,6 +219,7 @@ const am: Dict = {
   "sel.total_cost": "ጠቅላላ ክፍያ",
   "sel.starts_in": "ጨዋታ የሚጀምረው በ",
   "sel.insufficient": "በቂ ቀሪ ሂሳብ የለም",
+  "sel.topup": "ቦርሳ ሙላ",
   "sel.pick_before": "ጊዜ ከመጠናቀቁ በፊት እስከ {n} ካርቴላ ይምረጡ",
   "sel.max_warn": "እስከ {n} ካርቴላ ብቻ መምረጥ ይችላሉ።",
 

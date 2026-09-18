@@ -234,6 +234,7 @@ function BingoAppInner() {
           onBack={game.handleBackFromSelection}
           onConfirm={handleConfirmCartelas}
           onWatch={game.handleWatchGame}
+          onTopUp={() => { game.handleBackFromSelection(); game.setActiveTab("wallet"); }}
           stake={game.stake}
           playBalance={game.wallet.playBalance}
           mainBalance={game.wallet.mainBalance}
