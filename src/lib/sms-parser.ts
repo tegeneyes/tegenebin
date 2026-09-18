@@ -54,6 +54,12 @@ const CBE_REF_URL_RE = /[?&]id=([A-Z0-9]{10,25})\b/i
 // Mobile receipt: https://Mbreciept.cbe.com.et/FT26093S5WQ7-77824152
 const CBE_MB_URL_RE = /cbe\.com\.et\/(FT[A-Z0-9]{8,20})(?:-(\d{4,10}))?/i
 const CBE_REF_FT_RE = /\b(FT[A-Z0-9]{10,20})\b/
+// New CBE v2 receipt link: https://mbreciept.cbe.com.et/v2-hfHCxH8SKC7bAETbttiW
+// The full "v2-…" id is the reference and is CASE-SENSITIVE.
+const CBE_V2_URL_RE = /cbe\.com\.et\/(v2-[A-Za-z0-9]+)/i
+// New CBE v2 body: "transferred ETB100.00 from account 1********0338 to account 1********8669 (Tegene Wondimu G/tsadik)"
+const CBE_V2_OUT_RE =
+  /transferred\s+ETB\s*([\d,]+(?:\.\d{1,2})?)\s+from\s+account\s+([0-9*]{6,20})\s+to\s+account\s+([0-9*]{6,20})(?:\s*\(([^)]+)\))?/i
 
 /** CBE references are "FT" + 10 chars; receipt links append the 8-digit account suffix. */
 function splitCbeRef(raw: string): { reference: string; suffix: string | null } {
@@ -64,6 +70,9 @@ function splitCbeRef(raw: string): { reference: string; suffix: string | null } 
 }
 
 function cbeRef(cleaned: string): { reference: string; suffix: string | null } | null {
+  // v2 ids are case-sensitive — keep them exactly as printed.
+  const v2 = cleaned.match(CBE_V2_URL_RE)
+  if (v2) return { reference: v2[1]!, suffix: null }
   const mb = cleaned.match(CBE_MB_URL_RE)
   if (mb) return { reference: mb[1]!.toUpperCase(), suffix: mb[2] ?? null }
   const url = cleaned.match(CBE_REF_URL_RE)
@@ -125,8 +134,17 @@ export function parseSms(text: string): ParsedSms {
     const ref = r?.reference ?? null
     const suffix = r?.suffix ?? null
 
+    // New v2 outgoing transfer: from/to accounts + recipient name in parentheses
+    let m = cleaned.match(CBE_V2_OUT_RE)
+    if (m && ref) {
+      return {
+        provider: "cbe", amount: num(m[1]!), reference: ref,
+        recipient_name: m[4] ? m[4].trim().toLowerCase() : null, recipient_account: m[3]!, account_suffix: suffix,
+        matched: true, reason: "",
+      }
+    }
     // Outgoing transfer, recipient account printed
-    let m = cleaned.match(CBE_OUT_ACCOUNT_RE)
+    m = cleaned.match(CBE_OUT_ACCOUNT_RE)
     if (m && ref) {
       return {
         provider: "cbe", amount: num(m[1]!), reference: ref,

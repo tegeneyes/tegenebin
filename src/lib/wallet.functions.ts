@@ -100,10 +100,23 @@ export const requestDeposit = createServerFn({ method: "POST" })
     if (!player) throw new Error("We couldn't find your wallet. Please reopen the app from Telegram.")
     if (player.banned) throw new Error("Your account is suspended. Contact support.")
 
-    // ───── Manual review (default) ─────
-    // Record the deposit as pending; an admin approves it from the dashboard,
-    // which credits the wallet via process_transaction.
-    if (!DEPOSIT_AUTO_VERIFY) {
+    // One deposit at a time: no new request while one is awaiting review.
+    {
+      const { data: pending } = await supabaseAdmin
+        .from("transactions")
+        .select("id")
+        .eq("telegram_id", data.telegram_id)
+        .eq("type", "deposit")
+        .eq("status", "pending")
+        .limit(1)
+      if (pending && pending.length > 0) {
+        throw new Error("You already have a deposit awaiting review. Please wait until it is approved or rejected before submitting another.")
+      }
+    }
+
+    // Queue a deposit for admin review. Used directly in manual mode, and as the
+    // fallback whenever automatic verification cannot confirm the payment.
+    const submitForReview = async (note?: string, providerOverride?: "telebirr" | "cbe") => {
       const reference = (data.reference?.trim() || null)?.toUpperCase() ?? null
       if (reference) {
         const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
@@ -114,10 +127,11 @@ export const requestDeposit = createServerFn({ method: "POST" })
         type: "deposit",
         amount: data.amount,
         status: "pending",
-        provider: data.provider,
+        provider: providerOverride ?? data.provider,
         phone_number: data.phone_number ?? null,
         proof_text: data.proof_text ?? null,
         reference,
+        admin_note: note ? note.slice(0, 500) : null,
       }).select().single()
       if (error) {
         if (/duplicate key|unique constraint/i.test(error.message || "")) {
@@ -134,33 +148,31 @@ export const requestDeposit = createServerFn({ method: "POST" })
       }
     }
 
+    // ───── Manual review mode ─────
+    if (!DEPOSIT_AUTO_VERIFY) return submitForReview()
+
     // ───── Auto-verify path (DEPOSIT_AUTO_VERIFY=true) ─────
     const { veritasVerify, veritasCheck, veritasLimits } = await import("@/lib/veritas.server")
     const { parseSms, accountMatches } = await import("@/lib/sms-parser")
 
-    // Fully automatic: the SMS must match a known provider format exactly.
     const parsed = parseSms(data.proof_text ?? "")
     if (!parsed.matched || !parsed.reference || !parsed.amount || !parsed.provider) {
-      throw new Error("This doesn't look like a real telebirr or CBE confirmation SMS. Paste the full message exactly as you received it.")
+      // Can't read it automatically — let an admin review it instead of failing.
+      return submitForReview("Auto-verify: SMS not recognised")
     }
-    const reference = parsed.reference.toUpperCase()
+    const reference = parsed.reference
     const provider = parsed.provider
 
-    // 1. Money must have gone to OUR account.
+    // Money must have gone to OUR account — a clear reject if it didn't.
     const destinations = provider === "telebirr" ? [TELEBIRR_PHONE] : [CBE_ACCOUNT]
-    if (parsed.recipient_account) {
-      if (!accountMatches(parsed.recipient_account, destinations)) {
-        throw new Error(`This transfer was not sent to our ${provider === "telebirr" ? "telebirr number" : "CBE account"}. Only payments to the account shown in Payment Details are accepted.`)
-      }
-    } else if (!veritasLimits().enabled) {
-      // Newer CBE SMS hides the recipient account — without Veritas we cannot prove the destination.
-      throw new Error("We couldn't confirm the destination account from this SMS. Please try again shortly or contact support.")
+    if (parsed.recipient_account && !accountMatches(parsed.recipient_account, destinations)) {
+      throw new Error(`This transfer was not sent to our ${provider === "telebirr" ? "telebirr number" : "CBE account"}. Only payments to the account shown in Payment Details are accepted.`)
     }
     if (parsed.recipient_name && !parsed.recipient_name.includes(ACCOUNT_NAME.toLowerCase())) {
       throw new Error("The recipient name in this SMS does not match our account. Only payments to the account shown in Payment Details are accepted.")
     }
 
-    // 2. Amount checks — the SMS amount is authoritative.
+    // Amount checks — the SMS amount is authoritative.
     const smsAmount = parsed.amount
     if (Math.abs(smsAmount - data.amount) > 0.009) {
       throw new Error(`The SMS shows ${smsAmount.toFixed(2)} ETB but you entered ${data.amount.toFixed(2)} ETB. Enter the exact amount you transferred.`)
@@ -169,37 +181,33 @@ export const requestDeposit = createServerFn({ method: "POST" })
     if (smsAmount < limits.min) throw new Error(`Minimum deposit is ${limits.min} ETB.`)
     if (smsAmount > limits.max) throw new Error(`Maximum deposit is ${limits.max} ETB.`)
 
-    // 3. Anti-replay: a reference can only ever be used once (also enforced by a unique index).
+    // Anti-replay: a reference can only ever be used once (also enforced by a unique index).
     {
       const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
       if (dup && dup.length > 0) throw new Error("This SMS has already been used. Each receipt can only be deposited once.")
     }
 
-    // 4. Independent receipt verification (Veritas) when configured — provider-specific endpoint.
-    let verifiedAmount = smsAmount
-    let note = `Auto-approved · SMS parsed · ${smsAmount.toFixed(2)} ETB`
-    if (limits.enabled) {
-      const v = await veritasVerify(reference, provider, parsed.account_suffix ?? data.account_suffix ?? "")
-      if (/unreachable|bad response/i.test(v.error)) {
-        throw new Error("Verification service is temporarily busy. Please try again in a minute — your money is safe.")
-      }
-      const check = veritasCheck(v, provider)
-      if (!check.ok || !check.amount) {
-        throw new Error(`We could not verify this receipt (${check.reason}). Make sure you pasted the real SMS for a completed transfer.`)
-      }
-      // Receipt may show the net (settled) amount; allow up to 1 ETB fee difference.
-      if (Math.abs(check.amount - smsAmount) > 1) {
-        throw new Error(`The verified receipt amount (${check.amount.toFixed(2)} ETB) does not match the SMS. Deposit declined.`)
-      }
-      verifiedAmount = smsAmount
-      note = `Auto-verified by Veritas (${provider}) · ${check.amount.toFixed(2)} ETB`
+    // Veritas verification. Anything we cannot confirm automatically falls back
+    // to manual review, so a service hiccup never blocks the player.
+    if (!limits.enabled) {
+      return submitForReview("Auto-verify not configured", provider)
+    }
+    const v = await veritasVerify(reference, provider)
+    const check = veritasCheck(v, provider)
+    if (!check.ok || !check.amount) {
+      return submitForReview(`Auto-verify failed: ${check.reason}`, provider)
+    }
+    // Receipt may show the net (settled) amount; allow up to 1 ETB fee difference.
+    if (Math.abs(check.amount - smsAmount) > 1) {
+      return submitForReview(`Auto-verify amount mismatch (${check.amount} vs ${smsAmount})`, provider)
     }
 
-    // 5. Record + credit atomically.
+    // Verified — record + credit atomically.
+    const note = `Auto-verified by Veritas (${provider}) · ${check.amount.toFixed(2)} ETB`
     const { data: tx, error } = await supabaseAdmin.from("transactions").insert({
       telegram_id: data.telegram_id,
       type: "deposit",
-      amount: verifiedAmount,
+      amount: smsAmount,
       status: "pending",
       provider,
       phone_number: data.phone_number ?? null,
@@ -217,9 +225,12 @@ export const requestDeposit = createServerFn({ method: "POST" })
       _tx_id: tx.id, _new_status: "approved", _admin_note: note,
     })
     if (pErr || !approved) {
-      console.error("deposit approve failed:", pErr?.message)
-      await supabaseAdmin.from("transactions").update({ status: "rejected", admin_note: `Auto-credit failed: ${pErr?.message ?? "unknown"}`.slice(0, 500) }).eq("id", tx.id)
-      throw new Error("Could not credit your deposit right now. Please try again in a moment.")
+      // Auto-credit failed — leave it pending for an admin rather than rejecting.
+      console.error("deposit auto-credit failed:", pErr?.message)
+      await supabaseAdmin.from("transactions")
+        .update({ status: "pending", admin_note: `Auto-credit failed: ${pErr?.message ?? "unknown"}`.slice(0, 500) })
+        .eq("id", tx.id)
+      return { ...(tx as any), verified: false, pending: true, message: "Deposit submitted. It will be reviewed and credited shortly." }
     }
     return { ...(approved as any), verified: true, message: "Deposit verified and credited." }
   })
@@ -257,6 +268,19 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     if (!player) throw new Error("We couldn't find your wallet. Please reopen the app and try again.")
     if (bal < data.amount) {
       throw new Error(`Insufficient balance. You have ${bal.toFixed(2)} ETB in your wallet — please deposit before withdrawing.`)
+    }
+    // One withdrawal at a time: no new request while one is awaiting review.
+    {
+      const { data: pending } = await supabaseAdmin
+        .from("transactions")
+        .select("id")
+        .eq("telegram_id", data.telegram_id)
+        .eq("type", "withdrawal")
+        .eq("status", "pending")
+        .limit(1)
+      if (pending && pending.length > 0) {
+        throw new Error("You already have a withdrawal awaiting review. Please wait until it is processed before submitting another.")
+      }
     }
     const { data: tx, error } = await supabaseAdmin.from("transactions").insert({
       telegram_id: data.telegram_id,

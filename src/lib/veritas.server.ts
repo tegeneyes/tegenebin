@@ -2,9 +2,17 @@
 // The API key is read from process.env inside these functions and is never
 // exposed to the client, never placed in a URL/query string.
 //
-// Endpoints (per provider):
-//   POST /verify-telebirr  { reference }
-//   POST /verify-cbe       { reference, accountSuffix }   (accountSuffix = last 8 digits of OUR CBE account)
+// Provider-specific routes (only these work):
+//   POST {VERITAS_API_URL}/verify-telebirr   { reference }
+//   GET/POST {VERITAS_API_URL}/verify-cbe     { reference, accountSuffix }
+//        (accountSuffix = last 8 digits of OUR CBE account; needed for bare
+//         legacy FT references)
+// Auth header: x-api-key: <VERITAS_API_KEY>
+// Response:    { success: boolean, data?: <provider result>, error?: string }
+//
+// Per the docs: a non-2xx response OR a body with success:false is a failure.
+// The provider result is preserved under `data`, so amount/account/name fields
+// are read from there (see layers() below).
 
 export type Provider = "telebirr" | "cbe"
 
@@ -21,7 +29,9 @@ function cfg() {
   const cbeAccount = accounts.find(a => a.length >= 13) ?? ""
   return {
     enabled: (process.env["VERITAS_ENABLED"] ?? "true") !== "false",
-    base: (process.env["VERITAS_BASE"] || "https://verifyapi.leulzenebe.pro").replace(/\/+$/, ""),
+    base: (process.env["VERITAS_API_URL"] || process.env["VERITAS_BASE"] || "https://verifyapi.leulzenebe.pro").replace(/\/+$/, ""),
+    telebirrPath: process.env["VERITAS_TELEBIRR_PATH"] || "/verify-telebirr",
+    cbePath: process.env["VERITAS_CBE_PATH"] || "/verify-cbe",
     key: process.env["VERITAS_API_KEY"] || "",
     authHeader: process.env["VERITAS_AUTH_HEADER"] || "x-api-key",
     authPrefix: process.env["VERITAS_AUTH_PREFIX"] || "",
@@ -57,6 +67,7 @@ const AMOUNT_KEYS: Record<Provider, string[]> = {
   cbe: ["amount", "Amount", "transactionAmount", "totalAmount", ...EXTRA_AMOUNT_KEYS],
 }
 
+// The universal route wraps the provider result in `data`, so search all layers.
 function layers(res: Record<string, any>) {
   return [res, res?.["data"], res?.["data"]?.["data"]].filter(c => c && typeof c === "object") as Record<string, any>[]
 }
@@ -110,8 +121,13 @@ export function veritasDestMatches(res: Record<string, any>, provider: Provider)
   const digits = acct.replace(/[^0-9*]+/g, "")
   for (const want of c.accounts) {
     if (masked) {
-      const [head = "", tail = ""] = digits.split(/\*+/)
-      if ((head || tail) && want.startsWith(head) && want.endsWith(tail)) return { ok: true, reason: "" }
+      const [rawHead = "", tail = ""] = digits.split(/\*+/)
+      if (!rawHead && !tail) continue
+      // telebirr masks as "2519****3801" for the number "0907633801" — accept both prefixes.
+      const heads = [rawHead]
+      if (rawHead.startsWith("251") && rawHead.length >= 4) heads.push("0" + rawHead.slice(3))
+      const headOk = heads.some(h => h.length > 0 && want.startsWith(h))
+      if (headOk && want.endsWith(tail)) return { ok: true, reason: "" }
     } else {
       const full = digits.replace(/\D+/g, "")
       if (full === want || (full.length >= 4 && want.endsWith(full))) return { ok: true, reason: "" }
@@ -125,14 +141,15 @@ export async function veritasVerify(reference: string, provider: Provider, accou
   if (!c.enabled || !c.base || !c.key || !reference) {
     return { approved: false, amount: null, data: {}, error: "Veritas not configured" }
   }
-  const endpoint = provider === "cbe" ? "verify-cbe" : "verify-telebirr"
+
+  const path = provider === "cbe" ? c.cbePath : c.telebirrPath
   const payload: Record<string, string> = { reference }
   if (provider === "cbe") payload["accountSuffix"] = accountSuffix || c.cbeSuffix
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 12000)
   try {
-    const resp = await fetch(`${c.base}/${endpoint}`, {
+    const resp = await fetch(`${c.base}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -148,8 +165,9 @@ export async function veritasVerify(reference: string, provider: Provider, accou
     const obj = res as Record<string, any>
     // HTTP 200 does not mean verified — always read the JSON success flag.
     const success = obj["success"] === true || obj["success"] === "true"
-    const msg = typeof obj["message"] === "string" ? obj["message"] : typeof obj["error"] === "string" ? obj["error"] : ""
-    if (!success) {
+    const msg = typeof obj["error"] === "string" ? obj["error"]
+      : typeof obj["message"] === "string" ? obj["message"] : ""
+    if (!resp.ok || !success) {
       return { approved: false, amount: veritasAmount(obj, provider), data: obj, error: msg || (resp.ok ? "not verified" : `HTTP ${resp.status}`) }
     }
     return { approved: true, amount: veritasAmount(obj, provider), data: obj, error: "" }
