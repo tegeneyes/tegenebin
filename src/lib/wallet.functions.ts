@@ -267,9 +267,10 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       throw new Error("Please enter your CBE account name and account number.")
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
-    const { data: player } = await supabaseAdmin.from("players").select("balance").eq("telegram_id", data.telegram_id).maybeSingle()
+    const { data: player } = await supabaseAdmin.from("players").select("balance, banned").eq("telegram_id", data.telegram_id).maybeSingle()
     const bal = player ? Number(player.balance) : 0
     if (!player) throw new Error("We couldn't find your wallet. Please reopen the app and try again.")
+    if (player.banned) throw new Error("Your account is suspended. Contact support.")
     if (bal < data.amount) {
       throw new Error(`Insufficient balance. You have ${bal.toFixed(2)} ETB in your wallet — please deposit before withdrawing.`)
     }
