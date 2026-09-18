@@ -38,6 +38,45 @@ export type Database = {
         }
         Relationships: []
       }
+      error_logs: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          level: string
+          message: string
+          path: string | null
+          resolved: boolean
+          source: string
+          telegram_id: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          level?: string
+          message: string
+          path?: string | null
+          resolved?: boolean
+          source?: string
+          telegram_id?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          level?: string
+          message?: string
+          path?: string | null
+          resolved?: boolean
+          source?: string
+          telegram_id?: number | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       bonus_drops: {
         Row: {
           amount: number

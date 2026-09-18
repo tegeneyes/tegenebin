@@ -29,6 +29,7 @@ import { SplashScreen } from "@/components/bingo/splash-screen";
 import { PhoneShareScreen } from "@/components/bingo/phone-share-screen";
 import { TelegramRequiredScreen } from "@/components/bingo/telegram-required-screen";
 import { useTelegramGate } from "@/hooks/use-telegram-gate";
+import { installGlobalErrorHandlers, reportError } from "@/lib/error-log";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 
 function hasDevPhoneBypass() {
@@ -65,6 +66,9 @@ function BingoAppInner() {
 
   const [splashDone, setSplashDone] = useState(false);
   const [hasPhone, setHasPhone] = useState<boolean | null>(() => (hasDevPhoneBypass() ? true : null));
+
+  // Report uncaught client errors to the admin panel.
+  useEffect(() => installGlobalErrorHandlers(), []);
 
   const presenceEnabled = game.gameMode === "selecting" || game.gameMode === "playing" || game.gameMode === "watching";
   const livePlayers = useLobbyPresence({
@@ -113,6 +117,7 @@ function BingoAppInner() {
         game.handleWatchGame();
       } else {
         toast.error(msg);
+        reportError({ source: "game.stake", message: msg, detail: (e as Error)?.stack });
       }
     }
   };
@@ -139,6 +144,7 @@ function BingoAppInner() {
         setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id) || !!p?.phone_number);
       } catch (e) {
         console.error(e);
+        reportError({ source: "wallet.load", message: (e as Error)?.message ?? "wallet load failed", detail: (e as Error)?.stack });
         setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id));
       }
     })();
@@ -195,7 +201,10 @@ function BingoAppInner() {
       },
     })
       .then(() => refreshWallet())
-      .catch((e) => console.error("record game failed", e));
+      .catch((e) => {
+        console.error("record game failed", e);
+        reportError({ source: "game.record", message: (e as Error)?.message ?? "record game failed", detail: (e as Error)?.stack });
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.showWinModal, game.winningCartela?.id]);
 

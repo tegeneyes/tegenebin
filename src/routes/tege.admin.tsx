@@ -13,6 +13,9 @@ import {
   adminBonusDrop, adminListBonusDrops, adminListPlayers, adminSetBanned, adminPlayerDetail, adminDeletePlayer,
   type PlayerGameRow, type PlayerCartelaRow,
 } from "@/lib/admin-tools.functions"
+import {
+  adminListErrors, adminUnresolvedErrorCount, adminSetErrorResolved, adminClearErrors,
+} from "@/lib/error-log.functions"
 import { parseSms } from "@/lib/sms-parser"
 
 
@@ -87,11 +90,27 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
 function AdminPage({ onLogout }: { onLogout: () => void }) {
   const tg = { id: ADMIN_TG_ID }
-  const [tab, setTab] = useState<"tx" | "promo" | "announce" | "bonus" | "users">("tx")
+  const [tab, setTab] = useState<"tx" | "promo" | "announce" | "bonus" | "users" | "errors">("tx")
   const [error, setError] = useState<string | null>(null)
   const [txs, setTxs] = useState<Tx[]>([])
   const [promos, setPromos] = useState<Promo[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorCount, setErrorCount] = useState(0)
+  const countErrors = useServerFn(adminUnresolvedErrorCount)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const r = await countErrors({ data: { admin_id: tg.id } })
+        if (alive) setErrorCount(r.unresolved)
+      } catch { /* ignore */ }
+    }
+    load()
+    const t = setInterval(load, 60000)
+    return () => { alive = false; clearInterval(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const listTx = useServerFn(adminListTransactions)
   const process = useServerFn(adminProcessTransaction)
@@ -165,6 +184,12 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
         <button onClick={() => setTab("announce")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "announce" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Lobby Banner</button>
         <button onClick={() => setTab("bonus")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "bonus" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Bonus Drop</button>
         <button onClick={() => setTab("users")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase ${tab === "users" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>Users</button>
+        <button onClick={() => setTab("errors")} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase inline-flex items-center gap-1.5 ${tab === "errors" ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5"}`}>
+          Errors
+          {errorCount > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black">{errorCount > 99 ? "99+" : errorCount}</span>
+          )}
+        </button>
       </div>
 
 
@@ -253,6 +278,7 @@ function AdminPage({ onLogout }: { onLogout: () => void }) {
       {tab === "announce" && <AnnouncePanel adminId={tg.id} />}
       {tab === "bonus" && <BonusPanel adminId={tg.id} />}
       {tab === "users" && <UsersPanel adminId={tg.id} />}
+      {tab === "errors" && <ErrorsPanel adminId={tg.id} onCount={setErrorCount} />}
 
       <PromptDialog
         open={!!txDialog}
@@ -909,6 +935,125 @@ function PromptDialog({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+type ErrorRow = {
+  id: string; telegram_id: number | null; level: string; source: string; message: string;
+  detail: string | null; path: string | null; user_agent: string | null; resolved: boolean; created_at: string;
+}
+
+function ErrorsPanel({ adminId, onCount }: { adminId: number; onCount?: (n: number) => void }) {
+  const list = useServerFn(adminListErrors)
+  const setResolved = useServerFn(adminSetErrorResolved)
+  const clear = useServerFn(adminClearErrors)
+  const [rows, setRows] = useState<ErrorRow[]>([])
+  const [unresolved, setUnresolved] = useState(0)
+  const [filter, setFilter] = useState<"unresolved" | "all" | "resolved">("unresolved")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+
+  const refresh = async () => {
+    setBusy(true); setErr(null)
+    try {
+      const res = await list({ data: { admin_id: adminId, resolved: filter === "all" ? undefined : filter === "resolved", limit: 200 } }) as { rows: ErrorRow[]; total: number; unresolved: number }
+      setRows(res.rows); setUnresolved(res.unresolved); onCount?.(res.unresolved)
+    } catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refresh() }, [filter])
+  useEffect(() => {
+    const t = setInterval(() => { refresh() }, 30000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter])
+
+  const toggle = async (row: ErrorRow) => {
+    try { await setResolved({ data: { admin_id: adminId, id: row.id, resolved: !row.resolved } }); await refresh() }
+    catch (e) { setErr((e as Error).message) }
+  }
+
+  const doClear = async () => {
+    setClearing(true)
+    try { await clear({ data: { admin_id: adminId, resolvedOnly: true } }); setConfirmClear(false); await refresh() }
+    catch (e) { setErr((e as Error).message) }
+    finally { setClearing(false) }
+  }
+
+  const levelClass = (lvl: string) =>
+    lvl === "warning" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/40"
+      : lvl === "info" ? "bg-white/10 text-gray-300 border-white/20"
+        : "bg-red-500/20 text-red-300 border-red-500/40"
+
+  return (
+    <div className="mt-6 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2">
+          {(["unresolved", "all", "resolved"] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase ${filter === f ? "bg-bingo-accent text-bingo-deep-purple" : "bg-white/5 text-gray-300"}`}>
+              {f}{f === "unresolved" ? ` (${unresolved})` : ""}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={refresh} className="text-[11px] font-bold uppercase text-gray-300 hover:text-white border border-white/10 rounded px-3 py-1.5">Refresh</button>
+          <button onClick={() => setConfirmClear(true)} className="text-[11px] font-bold uppercase text-red-300 hover:text-red-200 border border-red-500/30 rounded px-3 py-1.5">Clear resolved</button>
+        </div>
+      </div>
+
+      {err && <div className="bg-red-500/20 border border-red-500/40 rounded p-2 text-sm">{err}</div>}
+      {busy && <p className="text-gray-400 text-sm">Loading…</p>}
+
+      <ul className="space-y-2">
+        {rows.length === 0 && !busy && <li className="text-gray-500 text-sm text-center py-8">No errors.</li>}
+        {rows.map(r => (
+          <li key={r.id} className={`rounded-xl border p-3 ${r.resolved ? "border-white/10 bg-white/[0.02] opacity-70" : "border-red-500/30 bg-red-500/5"}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${levelClass(r.level)}`}>{r.level}</span>
+                  <span className="text-[10px] font-bold uppercase text-bingo-accent">{r.source}</span>
+                  {r.telegram_id && <span className="text-[10px] text-gray-400 font-mono">{r.telegram_id}</span>}
+                  <span className="text-[10px] text-gray-500">{new Date(r.created_at).toLocaleString()}</span>
+                </div>
+                <p className="text-sm text-white mt-1 break-words">{r.message}</p>
+                {r.path && <p className="text-[10px] text-gray-500 font-mono mt-0.5">{r.path}</p>}
+              </div>
+              <button onClick={() => toggle(r)}
+                className={`shrink-0 text-[10px] font-black uppercase px-2.5 py-1 rounded border ${r.resolved ? "bg-white/5 text-gray-400 border-white/10" : "bg-bingo-green/20 text-bingo-green border-bingo-green/40"}`}>
+                {r.resolved ? "Resolved" : "Mark done"}
+              </button>
+            </div>
+            {(r.detail || r.user_agent) && (
+              <div className="mt-2">
+                <button onClick={() => setOpenId(openId === r.id ? null : r.id)} className="text-[10px] text-gray-400 hover:text-white uppercase font-bold">
+                  {openId === r.id ? "Hide detail" : "Show detail"}
+                </button>
+                {openId === r.id && (
+                  <pre className="mt-1 text-[10px] bg-black/40 p-2 rounded whitespace-pre-wrap font-mono max-h-60 overflow-auto">{r.detail ?? ""}{r.user_agent ? `\n\nUA: ${r.user_agent}` : ""}</pre>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear resolved errors"
+        message="Delete all errors marked resolved? Unresolved errors are kept."
+        confirmLabel="Clear"
+        danger
+        busy={clearing}
+        onConfirm={doClear}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>
   )
 }

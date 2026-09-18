@@ -9,6 +9,7 @@ import { ensurePlayer, getWallet, requestDeposit, requestWithdrawal, redeemPromo
 import { getDepositInstructions } from "@/lib/deposit-config.functions"
 import { TELEBIRR_PHONE, CBE_ACCOUNT, ACCOUNT_NAME } from "@/lib/payment-config"
 import { parseSms } from "@/lib/sms-parser"
+import { reportError } from "@/lib/error-log"
 import { useI18n } from "@/lib/i18n"
 
 type Tab = "balance" | "deposit" | "withdraw" | "promo" | "history"
@@ -200,6 +201,7 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
       onDone()
     } catch (err) {
       setError((err as Error).message)
+      reportError({ source: "deposit", message: (err as Error)?.message ?? "deposit failed", detail: (err as Error)?.stack })
     } finally {
       setSubmitting(false)
     }
@@ -327,6 +329,7 @@ function WithdrawForm({ telegramId, balance, onDone }: { telegramId: number; bal
       onDone()
     } catch (err) {
       setError((err as Error).message)
+      reportError({ source: "withdrawal", message: (err as Error)?.message ?? "withdrawal failed", detail: (err as Error)?.stack })
     } finally {
       setSubmitting(false)
     }
