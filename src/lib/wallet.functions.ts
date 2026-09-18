@@ -60,6 +60,10 @@ export const getPhoneStatus = createServerFn({ method: "POST" })
     }
   })
 
+// Deposits are reviewed manually by an admin by default. Set
+// DEPOSIT_AUTO_VERIFY=true to re-enable the strict SMS + Veritas auto-credit path.
+const DEPOSIT_AUTO_VERIFY = (process.env.DEPOSIT_AUTO_VERIFY ?? "false") === "true"
+
 export const requestDeposit = createServerFn({ method: "POST" })
   .inputValidator((d: {
     telegram_id: string | number
@@ -79,7 +83,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
       phone_number: z.string().max(20).optional(),
       cbe_account_name: z.string().max(100).optional(),
       cbe_account_number: z.string().max(50).optional(),
-      proof_text: z.string().trim().min(10, "Please paste the full confirmation SMS").max(2000, "SMS text is too long"),
+      proof_text: z.string().trim().max(2000, "SMS text is too long").optional(),
       reference: z.string().trim().max(40).regex(/^[A-Za-z0-9]*$/, "The reference should contain only letters and numbers").optional(),
       account_suffix: z.string().trim().max(10).regex(/^[0-9]*$/, "Account suffix must be digits").optional(),
     }).safeParse(d)
@@ -90,11 +94,52 @@ export const requestDeposit = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+
+    // Banned players cannot deposit.
+    const { data: player } = await supabaseAdmin.from("players").select("phone_number, banned").eq("telegram_id", data.telegram_id).maybeSingle()
+    if (!player) throw new Error("We couldn't find your wallet. Please reopen the app from Telegram.")
+    if (player.banned) throw new Error("Your account is suspended. Contact support.")
+
+    // ───── Manual review (default) ─────
+    // Record the deposit as pending; an admin approves it from the dashboard,
+    // which credits the wallet via process_transaction.
+    if (!DEPOSIT_AUTO_VERIFY) {
+      const reference = (data.reference?.trim() || null)?.toUpperCase() ?? null
+      if (reference) {
+        const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
+        if (dup && dup.length > 0) throw new Error("This reference has already been used.")
+      }
+      const { data: tx, error } = await supabaseAdmin.from("transactions").insert({
+        telegram_id: data.telegram_id,
+        type: "deposit",
+        amount: data.amount,
+        status: "pending",
+        provider: data.provider,
+        phone_number: data.phone_number ?? null,
+        proof_text: data.proof_text ?? null,
+        reference,
+      }).select().single()
+      if (error) {
+        if (/duplicate key|unique constraint/i.test(error.message || "")) {
+          throw new Error("This reference has already been used.")
+        }
+        console.error("deposit insert failed:", error.message)
+        throw new Error("Could not submit your deposit right now. Please try again in a moment.")
+      }
+      return {
+        ...(tx as any),
+        verified: false,
+        pending: true,
+        message: "Deposit submitted. It will be reviewed and credited shortly.",
+      }
+    }
+
+    // ───── Auto-verify path (DEPOSIT_AUTO_VERIFY=true) ─────
     const { veritasVerify, veritasCheck, veritasLimits } = await import("@/lib/veritas.server")
     const { parseSms, accountMatches } = await import("@/lib/sms-parser")
 
     // Fully automatic: the SMS must match a known provider format exactly.
-    const parsed = parseSms(data.proof_text)
+    const parsed = parseSms(data.proof_text ?? "")
     if (!parsed.matched || !parsed.reference || !parsed.amount || !parsed.provider) {
       throw new Error("This doesn't look like a real telebirr or CBE confirmation SMS. Paste the full message exactly as you received it.")
     }
@@ -130,12 +175,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
       if (dup && dup.length > 0) throw new Error("This SMS has already been used. Each receipt can only be deposited once.")
     }
 
-    // 4. Banned players cannot deposit.
-    const { data: player } = await supabaseAdmin.from("players").select("phone_number, banned").eq("telegram_id", data.telegram_id).maybeSingle()
-    if (!player) throw new Error("We couldn't find your wallet. Please reopen the app from Telegram.")
-    if (player.banned) throw new Error("Your account is suspended. Contact support.")
-
-    // 5. Independent receipt verification (Veritas) when configured — provider-specific endpoint.
+    // 4. Independent receipt verification (Veritas) when configured — provider-specific endpoint.
     let verifiedAmount = smsAmount
     let note = `Auto-approved · SMS parsed · ${smsAmount.toFixed(2)} ETB`
     if (limits.enabled) {
@@ -155,7 +195,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
       note = `Auto-verified by Veritas (${provider}) · ${check.amount.toFixed(2)} ETB`
     }
 
-    // 6. Record + credit atomically.
+    // 5. Record + credit atomically.
     const { data: tx, error } = await supabaseAdmin.from("transactions").insert({
       telegram_id: data.telegram_id,
       type: "deposit",

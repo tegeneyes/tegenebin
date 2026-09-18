@@ -161,7 +161,6 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
 
   const sendProof = async () => {
     setError(null)
-    if (proof.trim().length < 10) { setError(t("wallet.sms_required")); return }
     if (!telegramId) { setError("Please reopen the app from Telegram."); return }
     setSubmitting(true)
     try {
@@ -169,7 +168,7 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
         telegram_id: telegramId,
         amount: Number(amount),
         provider,
-        proof_text: proof.trim(),
+        proof_text: proof.trim() || undefined,
       }})
       setProofOpen(false)
       setVerified(!!res?.verified)
