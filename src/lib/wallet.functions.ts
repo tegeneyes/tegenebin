@@ -189,11 +189,15 @@ export const requestDeposit = createServerFn({ method: "POST" })
       }
     }
 
+    // A valid confirmation SMS is required — no deposit reaches the admin without one.
+    if (!receipt) {
+      throw new Error("Paste the full telebirr or CBE confirmation SMS for this deposit.")
+    }
+
     // ───── Manual review mode ─────
     if (!DEPOSIT_AUTO_VERIFY) return submitForReview()
 
     // ───── Auto-verify path (DEPOSIT_AUTO_VERIFY=true) ─────
-    if (!receipt) return submitForReview("Auto-verify: SMS not recognised")
     if (!limits.enabled) return submitForReview("Auto-verify not configured")
 
     const v = await veritasVerify(receipt.reference, provider)

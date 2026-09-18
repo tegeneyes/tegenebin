@@ -144,9 +144,9 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
   const [success, setSuccess] = useState(false)
   const [verified, setVerified] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [proofOpen, setProofOpen] = useState(false)
 
   const submit = useServerFn(requestDeposit)
-  const auto = !!config.auto_verify
 
   // Parse the pasted SMS locally so the user sees it's recognised — and the
   // amount/provider get filled — before we call the server.
@@ -166,6 +166,13 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
     setTimeout(() => setCopied(null), 1500)
   }
 
+  const openProof = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!amount || Number(amount) < 50) { setError(t("wallet.min_amount")); return }
+    setProofOpen(true)
+  }
+
   const pasteSms = async () => {
     setError(null)
     try {
@@ -181,20 +188,20 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // A valid confirmation SMS is required — no deposit reaches the admin without one.
+  const sendProof = async () => {
     setError(null)
     if (!telegramId) { setError("Please reopen the app from Telegram."); return }
-    const amt = Number(amount)
-    if (!amt || amt < 50) { setError(t("wallet.min_amount")); return }
+    if (!parsed?.matched) { setError(t("wallet.sms_required")); return }
     setSubmitting(true)
     try {
       const res: any = await submit({ data: {
         telegram_id: telegramId,
-        amount: amt,
-        provider: parsed?.matched && parsed.provider ? parsed.provider : provider,
-        proof_text: proof.trim() || undefined,
+        amount: Number(amount),
+        provider: parsed.provider ?? provider,
+        proof_text: proof.trim(),
       }})
+      setProofOpen(false)
       setVerified(!!res?.verified)
       setSuccess(true)
       setAmount(""); setProof("")
@@ -208,7 +215,7 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={openProof} className="space-y-3">
       {/* Single Payment Details card */}
       <div className="rounded-2xl bg-gradient-to-br from-bingo-accent/15 to-bingo-cyan/10 border border-bingo-accent/30 p-3.5 space-y-3">
         <div className="flex items-center justify-between">
@@ -243,29 +250,6 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
 
       <p className="text-[10px] text-gray-400">{t("wallet.after_send")}</p>
 
-      {/* SMS first — it fills the amount + provider and enables instant credit */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-300">
-            {t("wallet.sms_label")}{auto ? "" : ` · ${t("wallet.optional")}`}
-          </span>
-          <button type="button" onClick={pasteSms} className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-bingo-accent">
-            <ClipboardPaste size={12} /> {t("wallet.paste")}
-          </button>
-        </div>
-        <Textarea label="" value={proof} onChange={setProof} />
-        {parsed && (
-          parsed.matched ? (
-            <p className="text-[11px] text-bingo-green font-bold">
-              ✓ {parsed.provider === "cbe" ? "CBE" : "telebirr"} · {Number(parsed.amount ?? 0).toFixed(2)} ETB · ref {parsed.reference}
-            </p>
-          ) : (
-            <p className="text-[11px] text-yellow-400">{parsed.reason}</p>
-          )
-        )}
-        <p className="text-[10px] text-gray-500">{t("wallet.sms_hint")}</p>
-      </div>
-
       <div>
         <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">{t("wallet.quick")}</span>
         <div className="grid grid-cols-4 gap-2 mb-2">
@@ -279,13 +263,45 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
       <Input label={t("wallet.amount_label")} type="number" min={50} value={amount} onChange={setAmount} required />
       <p className="text-[11px] text-bingo-green font-bold">{t("wallet.min_note")}</p>
 
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && !proofOpen && <p className="text-red-400 text-xs">{error}</p>}
 
-      <button type="submit" disabled={submitting} className="w-full py-3 rounded-xl bg-bingo-green text-bingo-deep-purple font-black uppercase tracking-wider text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-        {submitting
-          ? <><Loader2 size={15} className="animate-spin" /> {t("wallet.sending")}</>
-          : (auto && parsed?.matched ? `${t("wallet.deposit_now")} ${Number(parsed.amount ?? 0).toFixed(0)} ETB` : t("wallet.submit_deposit"))}
+      <button type="submit" className="w-full py-3 rounded-xl bg-bingo-green text-bingo-deep-purple font-black uppercase tracking-wider text-sm">
+        {t("wallet.submit_deposit")}
       </button>
+
+      {proofOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => !submitting && setProofOpen(false)}>
+          <div className="w-full max-w-sm bg-bingo-deep-purple border border-bingo-accent/40 rounded-2xl p-5 shadow-2xl space-y-3" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="text-base font-display font-extrabold text-white tracking-wide">{t("wallet.proof_title")}</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">{t("wallet.proof_desc_sms", { amount })}</p>
+            </div>
+            <button type="button" onClick={pasteSms} className="w-full py-2 rounded-xl border border-bingo-accent/40 text-bingo-accent font-bold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-1.5">
+              <ClipboardPaste size={13} /> {t("wallet.paste")}
+            </button>
+            <Textarea label={t("wallet.sms_label")} value={proof} onChange={setProof} />
+            {parsed && (
+              parsed.matched ? (
+                <p className="text-[11px] text-bingo-green font-bold">
+                  ✓ {parsed.provider === "cbe" ? "CBE" : "telebirr"} · {Number(parsed.amount ?? 0).toFixed(2)} ETB · ref {parsed.reference}
+                </p>
+              ) : (
+                <p className="text-[11px] text-yellow-400">{parsed.reason}</p>
+              )
+            )}
+            <p className="text-[10px] text-gray-500 -mt-1">{t("wallet.sms_hint")}</p>
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button type="button" disabled={submitting} onClick={() => setProofOpen(false)} className="py-2.5 rounded-xl border border-white/15 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50">
+                {t("wallet.cancel")}
+              </button>
+              <button type="button" disabled={submitting || !parsed?.matched} onClick={sendProof} className="py-2.5 rounded-xl bg-bingo-green text-bingo-deep-purple font-black text-xs uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {submitting ? <><Loader2 size={14} className="animate-spin" /> {t("wallet.sending")}</> : t("wallet.send_proof")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SuccessModal
         open={success}
