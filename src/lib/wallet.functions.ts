@@ -154,10 +154,21 @@ export const requestDeposit = createServerFn({ method: "POST" })
     if (amount < limits.min) throw new Error(`Minimum deposit is ${limits.min} ETB.`)
     if (amount > limits.max) throw new Error(`Maximum deposit is ${limits.max} ETB.`)
 
-    // 4. Anti-replay: a receipt/reference can only ever be used once.
+    // 4. Anti-replay: hash the raw receipt text too, so the same SMS can never be
+    //    deposited twice even if the extracted reference format drifts.
+    const normalizedProof = (data.proof_text ?? "").trim().toLowerCase().replace(/\s+/g, " ")
+    let proofHashValue: string | null = null
+    if (normalizedProof) {
+      const { createHash } = await import("crypto")
+      proofHashValue = createHash("sha256").update(normalizedProof).digest("hex")
+    }
     if (reference) {
       const { data: dup } = await supabaseAdmin.from("transactions").select("id").eq("reference", reference).limit(1)
       if (dup && dup.length > 0) throw new Error("This receipt has already been used. Each receipt can only be deposited once.")
+    }
+    if (proofHashValue) {
+      const { data: dupHash } = await supabaseAdmin.from("transactions").select("id").eq("proof_hash", proofHashValue).limit(1)
+      if (dupHash && dupHash.length > 0) throw new Error("This receipt has already been used. Each receipt can only be deposited once.")
     }
 
     // Queue a deposit for admin review. Used directly in manual mode, and as the
@@ -171,6 +182,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
         provider,
         phone_number: data.phone_number ?? null,
         proof_text: data.proof_text ?? null,
+        proof_hash: proofHashValue,
         reference,
         admin_note: note ? note.slice(0, 500) : null,
       }).select().single()
@@ -194,19 +206,38 @@ export const requestDeposit = createServerFn({ method: "POST" })
       throw new Error("Paste the full telebirr or CBE confirmation SMS for this deposit.")
     }
 
+    // Record why a deposit couldn't be auto-verified so the admin can monitor it.
+    const noteAutoFallback = async (reason: string) => {
+      try {
+        await supabaseAdmin.from("error_logs").insert({
+          telegram_id: data.telegram_id,
+          level: "warning",
+          source: "deposit.auto",
+          message: reason.slice(0, 1000),
+          detail: (data.proof_text ?? "").slice(0, 2000) || null,
+          path: "/wallet",
+        })
+      } catch { /* logging must never break the deposit */ }
+    }
+
     // ───── Manual review mode ─────
     if (!DEPOSIT_AUTO_VERIFY) return submitForReview()
 
     // ───── Auto-verify path (DEPOSIT_AUTO_VERIFY=true) ─────
-    if (!limits.enabled) return submitForReview("Auto-verify not configured")
+    if (!limits.enabled) {
+      await noteAutoFallback("Auto-verify not configured (VERITAS_ENABLED / VERITAS_API_KEY missing)")
+      return submitForReview("Auto-verify not configured")
+    }
 
     const v = await veritasVerify(receipt.reference, provider)
     const check = veritasCheck(v, provider)
     if (!check.ok || !check.amount) {
+      await noteAutoFallback(`Auto-verify failed: ${check.reason}`)
       return submitForReview(`Auto-verify failed: ${check.reason}`)
     }
     // Receipt may show the net (settled) amount; allow up to 1 ETB fee difference.
     if (Math.abs(check.amount - amount) > 1) {
+      await noteAutoFallback(`Auto-verify amount mismatch (${check.amount} vs ${amount})`)
       return submitForReview(`Auto-verify amount mismatch (${check.amount} vs ${amount})`)
     }
 
@@ -220,6 +251,7 @@ export const requestDeposit = createServerFn({ method: "POST" })
       provider,
       phone_number: data.phone_number ?? null,
       proof_text: data.proof_text,
+      proof_hash: proofHashValue,
       reference,
     }).select().single()
     if (error) {

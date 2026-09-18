@@ -347,6 +347,7 @@ export type Database = {
           phone_number: string | null
           processed_at: string | null
           promo_code: string | null
+          proof_hash: string | null
           proof_text: string | null
           provider: string | null
           reference: string | null
@@ -364,6 +365,7 @@ export type Database = {
           phone_number?: string | null
           processed_at?: string | null
           promo_code?: string | null
+          proof_hash?: string | null
           proof_text?: string | null
           provider?: string | null
           reference?: string | null
@@ -381,6 +383,7 @@ export type Database = {
           phone_number?: string | null
           processed_at?: string | null
           promo_code?: string | null
+          proof_hash?: string | null
           proof_text?: string | null
           provider?: string | null
           reference?: string | null
@@ -464,6 +467,7 @@ export type Database = {
           phone_number: string | null
           processed_at: string | null
           promo_code: string | null
+          proof_hash: string | null
           proof_text: string | null
           provider: string | null
           reference: string | null
