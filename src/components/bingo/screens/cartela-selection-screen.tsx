@@ -47,7 +47,11 @@ export function CartelaSelectionScreen({
   const finishedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const maxCartelas = 2
+  const MAX_CARTELAS = 2
+  // Only allow as many cartelas as the wallet can actually pay for, so a player
+  // with e.g. 10 ETB at a 10 ETB stake can pick exactly 1.
+  const affordableCartelas = stake > 0 ? Math.floor(playBalance / stake) : 0
+  const maxCartelas = Math.max(0, Math.min(MAX_CARTELAS, affordableCartelas))
   const totalCost = selectedCartelas.length * stake
   const canAfford = playBalance >= totalCost
   // Live Derash = (players currently in this stake's lobby) × stake × 0.7 (30% house cut)
@@ -291,11 +295,17 @@ export function CartelaSelectionScreen({
             </span>
           </div>
         </div>
-        {!canAfford && selectedCartelas.length > 0 && (
+        {maxCartelas === 0 ? (
           <p className="text-bingo-red text-[11px] text-center mt-2">{t("sel.insufficient")}</p>
-        )}
-        {selectedCartelas.length === 0 && (
-          <p className="text-gray-400 text-[11px] text-center mt-2">{t("sel.pick_before", { n: maxCartelas })}</p>
+        ) : (
+          <>
+            {!canAfford && selectedCartelas.length > 0 && (
+              <p className="text-bingo-red text-[11px] text-center mt-2">{t("sel.insufficient")}</p>
+            )}
+            {selectedCartelas.length === 0 && (
+              <p className="text-gray-400 text-[11px] text-center mt-2">{t("sel.pick_before", { n: maxCartelas })}</p>
+            )}
+          </>
         )}
       </div>
     </div>
