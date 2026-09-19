@@ -205,7 +205,7 @@ export function useBingoGame() {
     }
   }, [autoJoin.active, autoJoin.stake, gameMode, handlePlayClick])
 
-  const handleWatchGame = useCallback(() => {
+  const handleWatchGame = useCallback((players?: number) => {
     const round = currentRound()
     // Watching is not the auto-rejoin path — stop waiting.
     setAutoJoin({ active: false, stake: 0 })
@@ -218,7 +218,7 @@ export function useBingoGame() {
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
-    setGameStats(prev => ({ ...prev, calledCount: 0, gameId: prev.gameId || `R-${round.index}`, bet: stake }))
+    setGameStats(prev => ({ ...prev, calledCount: 0, gameId: prev.gameId || `R-${round.index}`, bet: stake, players: players ?? prev.players }))
     setGameSequence(shuffleNumbers(round.index))
     setRoundIndex(round.index)
     setGameStartedAt(round.callingStartsAt)

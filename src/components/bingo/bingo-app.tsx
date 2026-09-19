@@ -10,7 +10,7 @@ import { useLobbyPresence } from "@/hooks/use-lobby-presence";
 import { useRoundCartelas } from "@/hooks/use-round-cartelas";
 import { ensurePlayer, getWallet } from "@/lib/wallet.functions";
 import { finishGame, startGame } from "@/lib/game.functions";
-import { reserveCartela, releaseCartela, getRoundCartelas } from "@/lib/cartela.functions";
+import { reserveCartela, releaseCartela, getRoundCartelas, getRoundPlayerCount } from "@/lib/cartela.functions";
 import { isAdminId } from "@/lib/admin";
 import type { Cartela } from "@/lib/bingo/types";
 import { BottomNav } from "@/components/bingo/bottom-nav";
@@ -63,6 +63,7 @@ function BingoAppInner() {
   const debitStake = useServerFn(startGame);
   const doReserve = useServerFn(reserveCartela);
   const doRelease = useServerFn(releaseCartela);
+  const fetchPlayerCount = useServerFn(getRoundPlayerCount);
   const recordedGameRef = useRef<string | null>(null);
   const PRIZE_MULTIPLIER = 0.7; // 30% house cut
 
@@ -335,7 +336,13 @@ function BingoAppInner() {
         <CartelaSelectionScreen
           onBack={game.handleBackFromSelection}
           onConfirm={handleConfirmCartelas}
-          onWatch={game.handleWatchGame}
+          onWatch={async () => {
+            let players: number | undefined;
+            try {
+              players = await fetchPlayerCount({ data: { round_index: game.roundIndex, stake: game.stake } });
+            } catch { /* fallback to stale stats */ }
+            game.handleWatchGame(players);
+          }}
           onTopUp={() => { game.handleBackFromSelection(); game.setActiveTab("wallet"); }}
           stake={game.stake}
           playBalance={game.wallet.playBalance}
