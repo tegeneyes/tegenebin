@@ -20,7 +20,6 @@ interface GameScreenProps {
   onCellClick: (row: number, col: number, cartelaIndex?: number) => void
   onLeave: () => void
   onRefresh: () => void
-  onPlayNow: () => void
   onNextNumber: () => void
   cartelas?: Cartela[]
   activeCartelaIndex?: number
@@ -39,7 +38,6 @@ export function GameScreen({
   onCellClick,
   onLeave,
   onRefresh,
-  onPlayNow,
   onNextNumber,
   cartelas = [],
   activeCartelaIndex = 0,
@@ -136,21 +134,12 @@ export function GameScreen({
         >
           LEAVE
         </button>
-        {isWatching ? (
-          <button
-            onClick={onPlayNow}
-            className="bg-bingo-green text-bingo-deep-purple py-3 rounded-xl font-black text-xs tracking-wider active:scale-[0.98] transition-transform"
-          >
-            PLAY NOW
-          </button>
-        ) : (
-          <button
-            onClick={onRefresh}
-            className="bg-white/[0.04] text-white py-3 rounded-xl font-black text-xs tracking-wider border border-white/10 active:scale-[0.98] transition-transform"
-          >
-            REFRESH
-          </button>
-        )}
+        <button
+          onClick={onRefresh}
+          className="bg-white/[0.04] text-white py-3 rounded-xl font-black text-xs tracking-wider border border-white/10 active:scale-[0.98] transition-transform"
+        >
+          REFRESH
+        </button>
       </div>
     </motion.div>
   )

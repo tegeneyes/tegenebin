@@ -7,6 +7,42 @@ import { checkBingo, cloneCard, generateBingoCard } from "@/lib/bingo/logic"
 import { voiceUrls } from "@/lib/bingo/voices"
 import { fakeNames } from "@/lib/bingo/fake-players"
 
+const WAIT_SECONDS = 15
+const SELECTION_SECONDS = 30
+const CALL_INTERVAL_MS = 4000
+const MAX_CALLS = 20
+const SELECTION_MS = SELECTION_SECONDS * 1000
+const CALLING_MS = MAX_CALLS * CALL_INTERVAL_MS
+const ROUND_MS = SELECTION_MS + CALLING_MS
+
+// Continuous rounds on a shared wall-clock, so every player is in the same
+// phase: selection (30s) → 20 calls → selection → 20 calls …
+function currentRound(now = Date.now()) {
+  const index = Math.floor(now / ROUND_MS)
+  const start = index * ROUND_MS
+  const selectingEndsAt = start + SELECTION_MS
+  const callingStartsAt = selectingEndsAt
+  const callingEndsAt = start + ROUND_MS
+  const phase: "selecting" | "calling" = now < selectingEndsAt ? "selecting" : "calling"
+  return { index, selectingEndsAt, callingStartsAt, callingEndsAt, phase }
+}
+
+// Deterministic per-round order so every client calls the same numbers.
+function shuffleNumbers(seed = 0) {
+  const arr = Array.from({ length: 75 }, (_, i) => i + 1)
+  let s = ((seed + 1) * 2654435761) % 2147483647
+  if (s <= 0) s += 2147483646
+  const rand = () => {
+    s = (s * 48271) % 2147483647
+    return s / 2147483647
+  }
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
+}
+
 export function useBingoGame() {
   const [activeTab, setActiveTab] = useState<TabType>("game")
   const [gameMode, setGameMode] = useState<GameMode>("lobby")
@@ -32,20 +68,6 @@ export function useBingoGame() {
   const [gameSequence, setGameSequence] = useState<number[]>([])
   const [waitTimeLeft, setWaitTimeLeft] = useState(0)
   const audioUnlockedRef = useRef(false)
-  const WAIT_SECONDS = 15
-  const SELECTION_SECONDS = 30
-  const LIVE_GAME_SECONDS = 5 * 60
-  const CALL_INTERVAL_MS = 4000
-  const MAX_CALLS = 20
-
-  const shuffleNumbers = () => {
-    const arr = Array.from({ length: 75 }, (_, i) => i + 1)
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    return arr
-  }
 
   const activeCard = cartelas[activeCartelaIndex]?.card || []
 
@@ -63,57 +85,40 @@ export function useBingoGame() {
   const handlePlayClick = useCallback((selectedStake?: number) => {
     unlockAudio()
     const nextStake = selectedStake ?? stake
-    if (selectedStake) {
-      setStake(selectedStake)
-    }
-    const now = Date.now()
-    const stakeChanged = liveGameStake !== null && liveGameStake !== nextStake
+    if (selectedStake) setStake(selectedStake)
 
-    // If switching to a different stake, abandon the old running game entirely.
-    if (stakeChanged) {
-      setLiveGameEndsAt(null)
-      setLiveGameStake(null)
-      setGameStartedAt(null)
-      setGameSequence([])
-      setCalledNumbers([])
-      setCartelas([])
-      setSelectionEndsAt(null)
-    }
+    const round = currentRound()
 
-    // If a live game of THIS stake is still running, jump back in as a watcher.
-    if (!stakeChanged && liveGameEndsAt && liveGameEndsAt > now && liveGameStake === nextStake) {
-      setSelectionEndsAt(null)
-      setGameMode("watching")
-      return
-    }
-
-    // Otherwise start fresh
+    // Reset the player's own state for the round they are joining.
     setCartelas([])
     setActiveCartelaIndex(0)
     setCalledNumbers([])
-    setGameStats(prev => ({ ...prev, calledCount: 0 }))
     setShowWinModal(false)
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
+    setGameStats(prev => ({ ...prev, calledCount: 0, bet: nextStake }))
+    setGameSequence(shuffleNumbers(round.index))
+    setGameStartedAt(round.callingStartsAt)
+    setLiveGameEndsAt(round.callingEndsAt)
+    setLiveGameStake(nextStake)
 
-    if (!stakeChanged && selectionEndsAt && selectionEndsAt <= now) {
+    if (round.phase === "selecting") {
+      // Selection window is open — pick cartelas.
+      setSelectionEndsAt(round.selectingEndsAt)
+      setGameMode("selecting")
+    } else {
+      // Calls already running — watch this round, then return to the lobby.
       setSelectionEndsAt(null)
-      setLiveGameEndsAt(now + LIVE_GAME_SECONDS * 1000)
-      setLiveGameStake(nextStake)
       setGameMode("watching")
-      return
     }
-    setSelectionEndsAt((current) => !stakeChanged && current && current > now ? current : now + SELECTION_SECONDS * 1000)
-    setGameMode("selecting")
-  }, [selectionEndsAt, liveGameEndsAt, liveGameStake, stake, unlockAudio])
+  }, [stake, unlockAudio])
 
   const makeGameId = () => `BG-${Math.floor(1000 + Math.random() * 9000)}`
 
   const handleSelectCartelas = useCallback((selected: Cartela[]) => {
     // Stake deduction is handled server-side by the caller (see BingoApp.handleConfirmCartelas)
     unlockAudio()
-    const now = Date.now()
     setCartelas(selected)
     setCalledNumbers([])
     setGameStats(prev => ({
@@ -125,10 +130,6 @@ export function useBingoGame() {
       derash: Math.round(selected.length * stake * 1.8),
     }))
     setSelectionEndsAt(null)
-    setLiveGameEndsAt(now + LIVE_GAME_SECONDS * 1000)
-    setLiveGameStake(stake)
-    setGameSequence(shuffleNumbers())
-    setGameStartedAt(now)
     setGameMode("playing")
   }, [stake, unlockAudio])
 
@@ -138,36 +139,22 @@ export function useBingoGame() {
   }, [])
 
   const handleWatchGame = useCallback(() => {
-    const now = Date.now()
+    const round = currentRound()
     setSelectionEndsAt(null)
-    setLiveGameEndsAt((curr) => (curr && curr > now ? curr : now + LIVE_GAME_SECONDS * 1000))
-    setLiveGameStake(stake)
-    setGameSequence(prev => prev.length ? prev : shuffleNumbers())
-    setGameStartedAt(prev => prev ?? now)
-    setGameStats(prev => ({ ...prev, gameId: prev.gameId || makeGameId(), bet: stake }))
-    setGameMode("watching")
-  }, [stake])
-
-  // Escape hatch from "watching": abandon the running round and start a fresh
-  // game immediately, instead of waiting for the round to end.
-  const handlePlayNow = useCallback(() => {
-    const now = Date.now()
-    unlockAudio()
-    setLiveGameEndsAt(null)
-    setLiveGameStake(null)
-    setGameStartedAt(null)
-    setGameSequence([])
-    setCalledNumbers([])
     setCartelas([])
     setActiveCartelaIndex(0)
+    setCalledNumbers([])
     setShowWinModal(false)
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
-    setGameStats(prev => ({ ...prev, calledCount: 0 }))
-    setSelectionEndsAt(now + SELECTION_SECONDS * 1000)
-    setGameMode("selecting")
-  }, [unlockAudio])
+    setGameStats(prev => ({ ...prev, calledCount: 0, gameId: prev.gameId || makeGameId(), bet: stake }))
+    setGameSequence(shuffleNumbers(round.index))
+    setGameStartedAt(round.callingStartsAt)
+    setLiveGameEndsAt(round.callingEndsAt)
+    setLiveGameStake(stake)
+    setGameMode("watching")
+  }, [stake])
 
   const resetGameState = useCallback(() => {
     setCartelas([])
@@ -357,11 +344,31 @@ export function useBingoGame() {
   // If 20 calls pass with no player bingo, close the round with a random named winner.
   useEffect(() => {
     if (showWinModal || winningCartela) return
-    if (gameMode !== "playing" && gameMode !== "watching") return
+    if (gameMode !== "playing") return
     if (calledNumbers.length < MAX_CALLS) return
     if (cartelas.some((cartela) => cartelaWinsWithCalls(cartela, calledNumbers))) return
     showRandomWinner()
   }, [calledNumbers, cartelaWinsWithCalls, cartelas, gameMode, showRandomWinner, showWinModal, winningCartela])
+
+  // Watching is read-only: when the round's calls finish, return to the lobby.
+  useEffect(() => {
+    if (gameMode !== "watching") return
+    if (!gameStartedAt) return
+    const endsAt = gameStartedAt + CALLING_MS
+    const tick = () => {
+      if (Date.now() >= endsAt) {
+        setGameMode("lobby")
+        setLiveGameEndsAt(null)
+        setGameStartedAt(null)
+        setGameSequence([])
+        setCalledNumbers([])
+        setCartelas([])
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [gameMode, gameStartedAt])
 
   // Clear the live-game flag once the round finishes
   useEffect(() => {
@@ -451,7 +458,6 @@ export function useBingoGame() {
     handleSelectCartelas,
     handleBackFromSelection,
     handleWatchGame,
-    handlePlayNow,
     handleCellClick,
     switchCartela,
     callNextNumber,

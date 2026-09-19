@@ -312,7 +312,6 @@ function BingoAppInner() {
             onCellClick={game.handleCellClick}
             onLeave={game.leaveGame}
             onRefresh={game.refreshCalled}
-            onPlayNow={game.handlePlayNow}
             onNextNumber={game.callNextNumber}
           />
         )}

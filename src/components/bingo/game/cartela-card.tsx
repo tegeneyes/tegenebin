@@ -83,9 +83,9 @@ export function WatchingBanner() {
         <br />
         started.
         <br />
-        Tap PLAY NOW to
+        You'll return to the
         <br />
-        start a new game.
+        lobby when it ends.
       </p>
     </div>
   )
