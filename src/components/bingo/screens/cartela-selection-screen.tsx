@@ -18,6 +18,12 @@ interface CartelaSelectionScreenProps {
   mainBalance: number
   selectionEndsAt: number | null
   livePlayers: number
+  /** Returns true if a cartela ID is taken by another player in this round */
+  isTakenByOthers?: (cartelaId: number) => boolean
+  /** Called when user selects a cartela — should reserve it server-side */
+  onReserve?: (cartelaId: number) => Promise<void>
+  /** Called when user deselects a cartela — should release it server-side */
+  onRelease?: (cartelaId: number) => Promise<void>
 }
 
 
@@ -40,6 +46,9 @@ export function CartelaSelectionScreen({
   mainBalance,
   selectionEndsAt,
   livePlayers,
+  isTakenByOthers,
+  onReserve,
+  onRelease,
 }: CartelaSelectionScreenProps) {
   const { t } = useI18n()
   const [allCartelas] = useState<Cartela[]>(() => generateAllCartelas())
@@ -86,32 +95,50 @@ export function CartelaSelectionScreen({
     return () => clearInterval(timer)
   }, [selectionEndsAt, selectedCartelas, onConfirm, onWatch])
 
-  const handleSelectCartela = (cartela: Cartela) => {
-    if (cartela.selectedByOthers) return
+  const handleSelectCartela = async (cartela: Cartela) => {
+    const taken = isTakenByOthers?.(cartela.id) ?? false
+    if (taken) return
 
     const isSelected = selectedCartelas.some(c => c.id === cartela.id)
 
     if (isSelected) {
+      // Deselect — release server-side reservation
       setSelectedCartelas(prev => prev.filter(c => c.id !== cartela.id))
+      try { await onRelease?.(cartela.id) } catch { /* best effort */ }
     } else if (selectedCartelas.length < maxCartelas) {
+      // Try to reserve server-side first
+      if (onReserve) {
+        try {
+          await onReserve(cartela.id)
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : ""
+          if (msg.includes("cartela_taken")) {
+            toast.error(t("sel.taken"))
+          } else {
+            toast.error(t("sel.reserve_failed"))
+          }
+          return
+        }
+      }
       setSelectedCartelas(prev => [...prev, cartela])
     } else {
       toast.error(maxCartelas === 0 ? t("sel.insufficient") : t("sel.max_warn", { n: maxCartelas }))
     }
   }
 
-  const handleUnselect = (id: number) => {
+  const handleUnselect = async (id: number) => {
     setSelectedCartelas(prev => prev.filter(c => c.id !== id))
+    try { await onRelease?.(id) } catch { /* best effort */ }
   }
 
   const getCartelaStatus = (cartela: Cartela) => {
     const isSelectedByMe = selectedCartelas.some(c => c.id === cartela.id)
-    const isSelectedByOthers = cartela.selectedByOthers
+    const takenByOthers = isTakenByOthers?.(cartela.id) ?? false
     
     return {
       isSelectedByMe,
-      isSelectedByOthers,
-      isAvailable: !isSelectedByMe && !isSelectedByOthers
+      isSelectedByOthers: takenByOthers,
+      isAvailable: !isSelectedByMe && !takenByOthers
     }
   }
 

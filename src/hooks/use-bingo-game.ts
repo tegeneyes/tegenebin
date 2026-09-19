@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { BingoCell, GameStats, ScoreFilter, TabType, Cartela, GameMode } from "@/lib/bingo/types"
 import { INITIAL_GAME_STATS } from "@/lib/bingo/constants"
-import { checkBingo, cloneCard, generateBingoCard } from "@/lib/bingo/logic"
+import { checkBingo, cloneCard } from "@/lib/bingo/logic"
 import { voiceUrls } from "@/lib/bingo/voices"
-import { fakeNames } from "@/lib/bingo/fake-players"
 
 const WAIT_SECONDS = 15
 const SELECTION_SECONDS = 30
@@ -66,6 +65,7 @@ export function useBingoGame() {
   const [liveGameStake, setLiveGameStake] = useState<number | null>(null)
   const [gameStartedAt, setGameStartedAt] = useState<number | null>(null)
   const [gameSequence, setGameSequence] = useState<number[]>([])
+  const [roundIndex, setRoundIndex] = useState(0)
   const [waitTimeLeft, setWaitTimeLeft] = useState(0)
   const audioUnlockedRef = useRef(false)
 
@@ -99,6 +99,7 @@ export function useBingoGame() {
     setWinnerIsCurrentUser(false)
     setGameStats(prev => ({ ...prev, calledCount: 0, bet: nextStake }))
     setGameSequence(shuffleNumbers(round.index))
+    setRoundIndex(round.index)
     setGameStartedAt(round.callingStartsAt)
     setLiveGameEndsAt(round.callingEndsAt)
     setLiveGameStake(nextStake)
@@ -114,8 +115,6 @@ export function useBingoGame() {
     }
   }, [stake, unlockAudio])
 
-  const makeGameId = () => `BG-${Math.floor(1000 + Math.random() * 9000)}`
-
   const handleSelectCartelas = useCallback((selected: Cartela[]) => {
     // Stake deduction is handled server-side by the caller (see BingoApp.handleConfirmCartelas)
     unlockAudio()
@@ -124,7 +123,7 @@ export function useBingoGame() {
     setGameStats(prev => ({
       ...prev,
       calledCount: 0,
-      gameId: makeGameId(),
+      gameId: prev.gameId || `R-${currentRound().index}`,
       bet: stake,
       players: selected.length,
       derash: Math.round(selected.length * stake * 1.8),
@@ -148,8 +147,9 @@ export function useBingoGame() {
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
-    setGameStats(prev => ({ ...prev, calledCount: 0, gameId: prev.gameId || makeGameId(), bet: stake }))
+    setGameStats(prev => ({ ...prev, calledCount: 0, gameId: prev.gameId || `R-${round.index}`, bet: stake }))
     setGameSequence(shuffleNumbers(round.index))
+    setRoundIndex(round.index)
     setGameStartedAt(round.callingStartsAt)
     setLiveGameEndsAt(round.callingEndsAt)
     setLiveGameStake(stake)
@@ -220,28 +220,6 @@ export function useBingoGame() {
     setCalledNumbers(newCalled)
     setGameStats(prev => ({ ...prev, calledCount: newCalled.length }))
   }, [calledNumbers, gameMode, gameSequence])
-
-  const showRandomWinner = useCallback(() => {
-    const winningCalls = gameSequence.slice(0, MAX_CALLS)
-    const seed = `${gameStats.gameId}:${stake}:${winningCalls.join("-")}`
-    const randomCard = generateBingoCard()
-    const guaranteedLine = winningCalls.slice(0, 5)
-    const markedCard = randomCard.map((row) => row.map((cell) => ({
-      ...cell,
-      marked: cell.number === "FREE" || (typeof cell.number === "number" && winningCalls.includes(cell.number)),
-      called: cell.number === "FREE" || (typeof cell.number === "number" && winningCalls.includes(cell.number)),
-    })))
-    markedCard[0] = markedCard[0].map((cell, index) => ({
-      ...cell,
-      number: guaranteedLine[index] ?? cell.number,
-      marked: true,
-      called: true,
-    }))
-    setWinningCartela({ id: 100 + (Math.abs(seed.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0)) % 900), card: markedCard })
-    setWinningDisplayName(fakeNames(1, seed)[0] ?? "Player")
-    setWinnerIsCurrentUser(false)
-    setShowWinModal(true)
-  }, [gameSequence, gameStats.gameId, stake])
 
   const cartelaWinsWithCalls = useCallback((cartela: Cartela, calls: number[]) => {
     const simulated = cloneCard(cartela.card)
@@ -341,14 +319,19 @@ export function useBingoGame() {
     })
   }, [calledNumbers, gameMode, automatic])
 
-  // If 20 calls pass with no player bingo, close the round with a random named winner.
+  // If 20 calls pass with no player bingo, the round ends with no winner.
+  // Record the result (all players lose) and return to lobby.
   useEffect(() => {
     if (showWinModal || winningCartela) return
     if (gameMode !== "playing") return
     if (calledNumbers.length < MAX_CALLS) return
     if (cartelas.some((cartela) => cartelaWinsWithCalls(cartela, calledNumbers))) return
-    showRandomWinner()
-  }, [calledNumbers, cartelaWinsWithCalls, cartelas, gameMode, showRandomWinner, showWinModal, winningCartela])
+    // No bingo — trigger win modal with no winner so the game records and returns to lobby
+    setWinningCartela(null)
+    setWinningDisplayName(null)
+    setWinnerIsCurrentUser(false)
+    setShowWinModal(true)
+  }, [calledNumbers, cartelaWinsWithCalls, cartelas, gameMode, showWinModal, winningCartela])
 
   // Watching is read-only: when the round's calls finish, return to the lobby.
   useEffect(() => {
@@ -444,6 +427,7 @@ export function useBingoGame() {
     wallet,
     stake,
     selectionEndsAt,
+    roundIndex,
     waitTimeLeft,
 
     // Setters

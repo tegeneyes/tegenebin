@@ -7,8 +7,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useBingoGame } from "@/hooks/use-bingo-game";
 import { useTelegramUser, isTelegramWebApp } from "@/hooks/use-telegram-user";
 import { useLobbyPresence } from "@/hooks/use-lobby-presence";
+import { useRoundCartelas } from "@/hooks/use-round-cartelas";
 import { ensurePlayer, getWallet } from "@/lib/wallet.functions";
 import { finishGame, startGame } from "@/lib/game.functions";
+import { reserveCartela, releaseCartela, getRoundCartelas } from "@/lib/cartela.functions";
 import { isAdminId } from "@/lib/admin";
 import type { Cartela } from "@/lib/bingo/types";
 import { BottomNav } from "@/components/bingo/bottom-nav";
@@ -21,8 +23,6 @@ import { WalletScreen } from "@/components/bingo/screens/wallet-screen";
 import { ProfileScreen } from "@/components/bingo/screens/profile-screen";
 import { RulesScreen } from "@/components/bingo/screens/rules-screen";
 import { CartelaSelectionScreen } from "@/components/bingo/screens/cartela-selection-screen";
-import { paddedCount } from "@/lib/bingo/fake-players";
-
 import { LoadingOverlay } from "@/components/bingo/loading-overlay";
 import { WinModal } from "@/components/bingo/win-modal";
 import { SplashScreen } from "@/components/bingo/splash-screen";
@@ -61,6 +61,8 @@ function BingoAppInner() {
   const fetchWallet = useServerFn(getWallet);
   const recordGame = useServerFn(finishGame);
   const debitStake = useServerFn(startGame);
+  const doReserve = useServerFn(reserveCartela);
+  const doRelease = useServerFn(releaseCartela);
   const recordedGameRef = useRef<string | null>(null);
   const PRIZE_MULTIPLIER = 0.7; // 30% house cut
 
@@ -76,6 +78,14 @@ function BingoAppInner() {
     stake: game.stake,
     enabled: presenceEnabled,
     username: tg?.username || tg?.first_name,
+  });
+
+  // Real-time cartela tracking for the current round
+  const roundCartelas = useRoundCartelas({
+    roundIndex: game.roundIndex,
+    stake: game.stake,
+    telegramId: tg?.id,
+    enabled: game.gameMode === "selecting" || game.gameMode === "playing" || game.gameMode === "watching",
   });
 
   const [bonusBalance, setBonusBalance] = useState(0);
@@ -176,37 +186,88 @@ function BingoAppInner() {
 
   // Record the player's result whenever their selected game ends.
   useEffect(() => {
-    if (!game.showWinModal || !game.winningCartela || !tg || game.cartelas.length === 0) return;
-    const key = `${tg.id}-${game.winningCartela.id}-${game.calledNumbers.length}`;
+    if (!game.showWinModal || !tg || game.cartelas.length === 0) return;
+    const winKey = game.winningCartela?.id ?? "none"
+    const key = `${tg.id}-${winKey}-${game.calledNumbers.length}`;
     if (recordedGameRef.current === key) return;
     recordedGameRef.current = key;
-    const totalStake = game.cartelas.length * game.stake;
-    const prize = game.winnerIsCurrentUser
-      ? Math.round(totalStake * PRIZE_MULTIPLIER * 100) / 100
-      : 0;
-    recordGame({
-      data: {
-        stake: game.stake,
-        called_numbers: game.calledNumbers,
-        prize_pool: prize,
-        winner_telegram_id: game.winnerIsCurrentUser ? tg.id : null,
-        winner_cartela_id: game.winnerIsCurrentUser ? game.winningCartela.id : null,
-        participants: game.cartelas.map((c) => ({
-          telegram_id: tg.id,
-          username: tg.username || tg.first_name || null,
-          cartela_id: c.id,
-          is_winner: game.winnerIsCurrentUser && c.id === game.winningCartela!.id,
-          payout: game.winnerIsCurrentUser && c.id === game.winningCartela!.id ? prize : 0,
-        })),
-      },
-    })
-      .then(() => refreshWallet())
-      .catch((e) => {
+
+    // Fetch all participants in this round from round_cartelas
+    const fetchParticipants = async () => {
+      try {
+        const rows = await getRoundCartelas({ data: {
+          round_index: game.roundIndex,
+          stake: game.stake,
+        }}) as Array<{ cartela_id: number; telegram_id: number }>
+
+        // Build participant list from round_cartelas
+        const winningCartelaId = game.winningCartela?.id ?? null
+        const isWinner = game.winnerIsCurrentUser && winningCartelaId !== null
+        const participants = rows.map(r => ({
+          telegram_id: r.telegram_id,
+          username: null as string | null,
+          cartela_id: r.cartela_id,
+          is_winner: isWinner && r.telegram_id === tg.id && r.cartela_id === winningCartelaId,
+          payout: isWinner && r.telegram_id === tg.id && r.cartela_id === winningCartelaId
+            ? Math.round(rows.length * game.stake * PRIZE_MULTIPLIER * 100) / 100
+            : 0,
+        }))
+
+        // If no round_cartelas found (fallback), use own cartelas
+        if (participants.length === 0) {
+          for (const c of game.cartelas) {
+            participants.push({
+              telegram_id: tg.id,
+              username: tg.username || tg.first_name || null,
+              cartela_id: c.id,
+              is_winner: isWinner && c.id === winningCartelaId,
+              payout: isWinner && c.id === winningCartelaId
+                ? Math.round(game.cartelas.length * game.stake * PRIZE_MULTIPLIER * 100) / 100
+                : 0,
+            })
+          }
+        }
+
+        const totalParticipants = participants.length
+        const prizePool = isWinner
+          ? Math.round(totalParticipants * game.stake * PRIZE_MULTIPLIER * 100) / 100
+          : 0
+
+        await recordGame({
+          data: {
+            stake: game.stake,
+            called_numbers: game.calledNumbers,
+            prize_pool: prizePool,
+            winner_telegram_id: isWinner ? tg.id : null,
+            winner_cartela_id: winningCartelaId,
+            participants,
+          },
+        })
+        await refreshWallet()
+      } catch (e) {
         console.error("record game failed", e);
         reportError({ source: "game.record", message: (e as Error)?.message ?? "record game failed", detail: (e as Error)?.stack });
-      });
+      }
+    }
+    fetchParticipants()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.showWinModal, game.winningCartela?.id]);
+
+  // Release all reserved cartelas when the player returns to lobby.
+  // This covers: leaving selection, leaving game, round end.
+  useEffect(() => {
+    if (game.gameMode !== "lobby" || !tg || game.cartelas.length === 0) return;
+    // Release in background — best effort
+    for (const c of game.cartelas) {
+      doRelease({ data: {
+        round_index: game.roundIndex,
+        stake: game.stake,
+        telegram_id: tg.id,
+        cartela_id: c.id,
+      }}).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.gameMode]);
 
   const showGame = (game.gameMode === "playing" || game.gameMode === "watching") && game.activeTab === "game";
   const showHome = game.gameMode === "lobby" && game.activeTab === "game";
@@ -248,7 +309,25 @@ function BingoAppInner() {
           playBalance={game.wallet.playBalance}
           mainBalance={game.wallet.mainBalance}
           selectionEndsAt={game.selectionEndsAt}
-          livePlayers={paddedCount(livePlayers, `selecting:${game.stake}`)}
+          livePlayers={roundCartelas.playerCount || livePlayers}
+          isTakenByOthers={(id) => roundCartelas.isTaken(id) && !game.cartelas.some(c => c.id === id)}
+          onReserve={tg ? async (cartelaId) => {
+            await doReserve({ data: {
+              round_index: game.roundIndex,
+              stake: game.stake,
+              telegram_id: tg.id,
+              username: tg.username || tg.first_name,
+              cartela_id: cartelaId,
+            }})
+          } : undefined}
+          onRelease={tg ? async (cartelaId) => {
+            await doRelease({ data: {
+              round_index: game.roundIndex,
+              stake: game.stake,
+              telegram_id: tg.id,
+              cartela_id: cartelaId,
+            }})
+          } : undefined}
         />
       </div>
     );
@@ -301,8 +380,9 @@ function BingoAppInner() {
             calledNumbers={game.calledNumbers}
             gameStats={{
               ...game.gameStats,
-              players: Math.max(1, livePlayers),
-              derash: Math.round(Math.max(1, livePlayers) * game.stake * 0.7),
+              gameId: game.gameStats.gameId || `R-${game.roundIndex}`,
+              players: roundCartelas.playerCount || Math.max(1, livePlayers),
+              derash: Math.round((roundCartelas.playerCount || Math.max(1, livePlayers)) * game.stake * 0.7),
             }}
             automatic={game.automatic}
             soundEnabled={game.soundEnabled}

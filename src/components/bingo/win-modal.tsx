@@ -16,6 +16,7 @@ interface WinModalProps {
 }
 
 export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, autoCloseSeconds = 8 }: WinModalProps) {
+  const hasWinner = winningCartela !== null
   const cartelaNumber = winningCartela?.id || 410
   const card = winningCartela?.card || []
   const [countdown, setCountdown] = useState(autoCloseSeconds)
@@ -48,11 +49,21 @@ export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, a
           >
             <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-bingo-gold/20 to-transparent pointer-events-none" />
 
-            <Trophy size={64} className="text-bingo-gold mb-4 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]" />
+            <Trophy size={64} className={cn("mb-4 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]", hasWinner ? "text-bingo-gold" : "text-gray-400")} />
 
-            <h2 className="text-4xl font-display font-black text-white italic mb-2 tracking-tighter">BINGO!</h2>
-            <p className="text-bingo-gold font-black uppercase tracking-widest text-sm mb-6">🏆 {winnerName ? `${winnerName} WON!` : "YOU WON!"} 🏆</p>
+            {hasWinner ? (
+              <>
+                <h2 className="text-4xl font-display font-black text-white italic mb-2 tracking-tighter">BINGO!</h2>
+                <p className="text-bingo-gold font-black uppercase tracking-widest text-sm mb-6">🏆 {winnerName ? `${winnerName} WON!` : "YOU WON!"} 🏆</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-display font-black text-white italic mb-2 tracking-tighter">ROUND OVER</h2>
+                <p className="text-gray-400 font-bold uppercase tracking-widest text-sm mb-6">No one got BINGO this round</p>
+              </>
+            )}
 
+            {hasWinner && (
             <div className="relative w-full mb-6 rounded-2xl p-[1.5px] bg-gradient-to-br from-bingo-gold via-amber-500 to-bingo-gold/40 shadow-[0_8px_24px_-8px_rgba(212,175,55,0.55)]">
               <div className="rounded-[14px] bg-gradient-to-br from-bingo-deep-purple to-[#1a0e2e] p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -104,6 +115,7 @@ export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, a
                 </div>
               </div>
             </div>
+            )}
 
             <div className="w-full bg-white/5 py-2 px-4 rounded-full border border-white/10 flex items-center justify-center gap-3 mb-6">
               <div className="w-2 h-2 rounded-full bg-bingo-gold animate-ping" />

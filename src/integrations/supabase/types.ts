@@ -336,6 +336,36 @@ export type Database = {
           },
         ]
       }
+      round_cartelas: {
+        Row: {
+          cartela_id: number
+          created_at: string
+          id: number
+          round_index: number
+          stake: number
+          telegram_id: number
+          username: string | null
+        }
+        Insert: {
+          cartela_id: number
+          created_at?: string
+          id?: number
+          round_index: number
+          stake: number
+          telegram_id: number
+          username?: string | null
+        }
+        Update: {
+          cartela_id?: number
+          created_at?: string
+          id?: number
+          round_index?: number
+          stake?: number
+          telegram_id?: number
+          username?: string | null
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           admin_note: string | null

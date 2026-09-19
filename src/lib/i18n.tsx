@@ -48,6 +48,8 @@ const en: Dict = {
   "sel.topup": "Top up wallet",
   "sel.pick_before": "Pick up to {n} cartelas before time runs out",
   "sel.max_warn": "You can only choose up to {n} cartelas.",
+  "sel.taken": "This cartela was just taken by another player!",
+  "sel.reserve_failed": "Could not reserve cartela. Try again.",
 
   // Phone share
   "phone.welcome_named": "Welcome, {name}!",
@@ -226,6 +228,8 @@ const am: Dict = {
   "sel.topup": "ቦርሳ ሙላ",
   "sel.pick_before": "ጊዜ ከመጠናቀቁ በፊት እስከ {n} ካርቴላ ይምረጡ",
   "sel.max_warn": "እስከ {n} ካርቴላ ብቻ መምረጥ ይችላሉ።",
+  "sel.taken": "ይህ ካርቴላ በሌላ ጨዋታ ተጫዋች ተይዟል!",
+  "sel.reserve_failed": "ካርቴላ ማስመ札 አልተቻለም። እንደገና ይሞክሩ።",
 
   "phone.welcome_named": "እንኳን ደህና መጡ፣ {name}!",
   "phone.welcome": "እንኳን ደህና መጡ!",
