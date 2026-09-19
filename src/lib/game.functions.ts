@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { finiteNumber, roundIndex } from "@/lib/validate"
 
 const TelegramIdSchema = z.union([z.string(), z.number()]).transform(v => Number(v)).refine(n => Number.isFinite(n) && n > 0, "invalid telegram_id")
 
@@ -17,9 +18,9 @@ export const MIN_PLAYERS = 2
 export const startGame = createServerFn({ method: "POST" })
   .inputValidator((d: { telegram_id: string | number; total_stake: number; round_index: number | string; stake: number }) => ({
     telegram_id: TelegramIdSchema.parse(d.telegram_id),
-    total_stake: z.number().positive().parse(d.total_stake),
-    round_index: z.coerce.number().int().nonnegative().parse(d.round_index),
-    stake: z.number().positive().parse(d.stake),
+    total_stake: z.number().positive().min(0.01, "total_stake must be at least 0.01").parse(finiteNumber("total_stake", d.total_stake)),
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().min(0.01, "stake must be at least 0.01").parse(finiteNumber("stake", d.stake)),
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")

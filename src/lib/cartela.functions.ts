@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { finiteNumber, roundIndex } from "@/lib/validate"
 
 const TelegramIdSchema = z.union([z.string(), z.number()]).transform(v => Number(v)).refine(n => Number.isFinite(n) && n > 0, "invalid telegram_id")
 
@@ -11,11 +12,11 @@ export const reserveCartela = createServerFn({ method: "POST" })
     username?: string | null
     cartela_id: number
   }) => ({
-    round_index: z.coerce.number().int().nonnegative().parse(d.round_index),
-    stake: z.number().positive().parse(d.stake),
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().parse(finiteNumber("stake", d.stake)),
     telegram_id: TelegramIdSchema.parse(d.telegram_id),
     username: z.string().max(100).optional().nullable().parse(d.username),
-    cartela_id: z.number().int().min(1).max(500).parse(d.cartela_id),
+    cartela_id: z.number().int().min(1).max(500).parse(finiteNumber("cartela_id", d.cartela_id)),
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
@@ -40,10 +41,10 @@ export const releaseCartela = createServerFn({ method: "POST" })
     telegram_id: number | string
     cartela_id: number
   }) => ({
-    round_index: z.coerce.number().int().nonnegative().parse(d.round_index),
-    stake: z.number().positive().parse(d.stake),
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().parse(finiteNumber("stake", d.stake)),
     telegram_id: TelegramIdSchema.parse(d.telegram_id),
-    cartela_id: z.number().int().min(1).max(500).parse(d.cartela_id),
+    cartela_id: z.number().int().min(1).max(500).parse(finiteNumber("cartela_id", d.cartela_id)),
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
@@ -58,8 +59,8 @@ export const releaseCartela = createServerFn({ method: "POST" })
 
 export const getRoundCartelas = createServerFn({ method: "POST" })
   .inputValidator((d: { round_index: number | string; stake: number }) => ({
-    round_index: z.coerce.number().int().nonnegative().parse(d.round_index),
-    stake: z.number().positive().parse(d.stake),
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().parse(finiteNumber("stake", d.stake)),
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
@@ -73,8 +74,8 @@ export const getRoundCartelas = createServerFn({ method: "POST" })
 
 export const getRoundPlayerCount = createServerFn({ method: "POST" })
   .inputValidator((d: { round_index: number | string; stake: number }) => ({
-    round_index: z.coerce.number().int().nonnegative().parse(d.round_index),
-    stake: z.number().positive().parse(d.stake),
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().parse(finiteNumber("stake", d.stake)),
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")

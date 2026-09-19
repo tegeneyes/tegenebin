@@ -124,6 +124,14 @@ function BingoAppInner() {
       return;
     }
     const totalStake = selected.length * game.stake;
+    if (!Number.isFinite(totalStake) || !Number.isFinite(game.roundIndex)) {
+      const detail = `total_stake=${JSON.stringify(totalStake)} stake=${JSON.stringify(game.stake)} round_index=${JSON.stringify(game.roundIndex)} cartelas=${selected.length}`;
+      console.error("startGame received non-finite values:", detail);
+      reportError({ source: "game.stake.guard", message: `client guard: ${detail}`, detail });
+      toast.error(t("toast.invalid_state"));
+      game.handleWatchGame();
+      return;
+    }
     try {
       const res = await debitStake({ data: { telegram_id: tg.id, total_stake: totalStake, round_index: game.roundIndex, stake: game.stake } });
       game.setWallet({ mainBalance: res.balance, playBalance: res.balance });
@@ -146,7 +154,12 @@ function BingoAppInner() {
         game.handleWatchGame();
       } else {
         toast.error(msg);
-        reportError({ source: "game.stake", message: msg, detail: (e as Error)?.stack });
+        // Attach the exact client values so the next NaN/numeric error is attributable.
+        reportError({
+          source: "game.stake",
+          message: msg,
+          detail: `values total_stake=${JSON.stringify(totalStake)} stake=${JSON.stringify(game.stake)} round_index=${JSON.stringify(game.roundIndex)} cartelas=${selected.length}\n` + ((e as Error)?.stack ?? ""),
+        });
       }
     }
   };
