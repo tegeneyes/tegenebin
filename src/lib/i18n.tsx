@@ -50,6 +50,8 @@ const en: Dict = {
   "sel.max_warn": "You can only choose up to {n} cartelas.",
   "sel.taken": "This cartela was just taken by another player!",
   "sel.reserve_failed": "Could not reserve cartela. Try again.",
+  "sel.waiting_players": "{n} more player needed to start",
+  "sel.players_ready": "players ready",
 
   // Phone share
   "phone.welcome_named": "Welcome, {name}!",
@@ -188,6 +190,7 @@ const en: Dict = {
   // App toasts
   "toast.suspended": "Your account is suspended. Contact support.",
   "toast.insufficient": "Insufficient balance — joining as a watcher.",
+  "toast.need_players": "At least 2 players are required to start a game. Waiting for the next round.",
 }
 
 const am: Dict = {
@@ -230,6 +233,8 @@ const am: Dict = {
   "sel.max_warn": "እስከ {n} ካርቴላ ብቻ መምረጥ ይችላሉ።",
   "sel.taken": "ይህ ካርቴላ በሌላ ጨዋታ ተጫዋች ተይዟል!",
   "sel.reserve_failed": "ካርቴላ ማስመ札 አልተቻለም። እንደገና ይሞክሩ።",
+  "sel.waiting_players": "ለመጀመር {n} ተጫዋች ተጨማሪ ያስፈልጋል",
+  "sel.players_ready": "ተጫዋቾች ዝግጁ",
 
   "phone.welcome_named": "እንኳን ደህና መጡ፣ {name}!",
   "phone.welcome": "እንኳን ደህና መጡ!",
@@ -361,6 +366,7 @@ const am: Dict = {
 
   "toast.suspended": "መለያዎ ታግዷል። ድጋፍን ያነጋግሩ።",
   "toast.insufficient": "በቂ ቀሪ ሂሳብ የለም — እንደ ተመልካች ነው የሚገቡት።",
+  "toast.need_players": "ጨዋታ ለመጀመር ቢያንስ 2 ተጫዋቾች ያስፈልጋሉ። ለሚቀጥለው ዙር ይጠብቁ።",
 }
 
 const dicts: Record<Lang, Dict> = { en, am }

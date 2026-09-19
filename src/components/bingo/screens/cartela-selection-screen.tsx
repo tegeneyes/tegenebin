@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import type { Cartela } from "@/lib/bingo/types"
 import { generateBingoCard } from "@/lib/bingo/logic"
 import { useI18n } from "@/lib/i18n"
+import { MIN_PLAYERS } from "@/lib/game.functions"
 
 interface CartelaSelectionScreenProps {
   onBack: () => void
@@ -194,6 +195,19 @@ export function CartelaSelectionScreen({
           <p className="text-bingo-gold/80 text-[9px] uppercase font-bold">{t("sel.derash")}</p>
           <p className="text-bingo-gold font-mono text-base font-bold">{derash}</p>
         </div>
+      </div>
+
+      {/* Multiplayer player-count notice */}
+      <div className="px-4 pb-1 flex-shrink-0">
+        {livePlayers < MIN_PLAYERS ? (
+          <p className="text-amber-400 text-[10px] font-bold uppercase tracking-wider">
+            ⏳ {t("sel.waiting_players", { n: Math.max(1, MIN_PLAYERS - livePlayers) })}
+          </p>
+        ) : (
+          <p className="text-bingo-green text-[10px] font-bold uppercase tracking-wider">
+            ✓ {livePlayers} {t("sel.players_ready")}
+          </p>
+        )}
       </div>
 
       {/* Timer and Selection Status - Compact */}

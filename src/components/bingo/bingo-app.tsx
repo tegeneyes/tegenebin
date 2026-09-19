@@ -104,6 +104,20 @@ function BingoAppInner() {
     }
   };
 
+  const releaseCartelas = async (cartelas: Cartela[]) => {
+    if (!tg) return;
+    for (const c of cartelas) {
+      try {
+        await doRelease({ data: {
+          round_index: game.roundIndex,
+          stake: game.stake,
+          telegram_id: tg.id,
+          cartela_id: c.id,
+        }});
+      } catch { /* best effort */ }
+    }
+  };
+
   const handleConfirmCartelas = async (selected: Cartela[]) => {
     if (!tg) {
       game.handleSelectCartelas(selected);
@@ -111,7 +125,7 @@ function BingoAppInner() {
     }
     const totalStake = selected.length * game.stake;
     try {
-      const res = await debitStake({ data: { telegram_id: tg.id, total_stake: totalStake } });
+      const res = await debitStake({ data: { telegram_id: tg.id, total_stake: totalStake, round_index: game.roundIndex, stake: game.stake } });
       game.setWallet({ mainBalance: res.balance, playBalance: res.balance });
       // Bonus is consumed first server-side; mirror it locally.
       setBonusBalance(b => Math.max(0, b - totalStake));
@@ -119,7 +133,12 @@ function BingoAppInner() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to start game";
       const low = msg.toLowerCase();
-      if (low.includes("banned")) {
+      if (low.includes("need_players")) {
+        // Multiplayer gate: not enough players in this round.
+        await releaseCartelas(selected);
+        toast.error(t("toast.need_players"));
+        game.handleWatchGame();
+      } else if (low.includes("banned")) {
         toast.error(t("toast.suspended"));
         game.handleWatchGame();
       } else if (low.includes("insufficient")) {

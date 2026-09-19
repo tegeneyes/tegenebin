@@ -11,13 +11,28 @@ const ParticipantSchema = z.object({
   payout: z.number().nonnegative().default(0),
 })
 
+/** Multiplayer minimum — a round cannot start with fewer players than this. */
+export const MIN_PLAYERS = 2
+
 export const startGame = createServerFn({ method: "POST" })
-  .inputValidator((d: { telegram_id: string | number; total_stake: number }) => ({
+  .inputValidator((d: { telegram_id: string | number; total_stake: number; round_index: number | string; stake: number }) => ({
     telegram_id: TelegramIdSchema.parse(d.telegram_id),
     total_stake: z.number().positive().parse(d.total_stake),
+    round_index: z.coerce.number().int().nonnegative().parse(d.round_index),
+    stake: z.number().positive().parse(d.stake),
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+
+    // Multiplayer gate: refuse to start unless at least MIN_PLAYERS have committed
+    // cartelas for this round+stake. A lone player cannot start the game.
+    const { data: count, error: countError } = await supabaseAdmin.rpc("get_round_player_count", {
+      _round_index: data.round_index,
+      _stake: data.stake,
+    } as never)
+    if (countError) throw new Error(countError.message)
+    if (Number(count) < MIN_PLAYERS) throw new Error("need_players")
+
     const { data: newBalance, error } = await supabaseAdmin.rpc("debit_stake", {
       _telegram_id: data.telegram_id,
       _amount: data.total_stake,
