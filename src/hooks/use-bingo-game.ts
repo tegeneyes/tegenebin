@@ -148,6 +148,27 @@ export function useBingoGame() {
     setGameMode("watching")
   }, [stake])
 
+  // Escape hatch from "watching": abandon the running round and start a fresh
+  // game immediately, instead of waiting for the round to end.
+  const handlePlayNow = useCallback(() => {
+    const now = Date.now()
+    unlockAudio()
+    setLiveGameEndsAt(null)
+    setLiveGameStake(null)
+    setGameStartedAt(null)
+    setGameSequence([])
+    setCalledNumbers([])
+    setCartelas([])
+    setActiveCartelaIndex(0)
+    setShowWinModal(false)
+    setWinningCartela(null)
+    setWinningDisplayName(null)
+    setWinnerIsCurrentUser(false)
+    setGameStats(prev => ({ ...prev, calledCount: 0 }))
+    setSelectionEndsAt(now + SELECTION_SECONDS * 1000)
+    setGameMode("selecting")
+  }, [unlockAudio])
+
   const resetGameState = useCallback(() => {
     setCartelas([])
     setActiveCartelaIndex(0)
@@ -430,6 +451,7 @@ export function useBingoGame() {
     handleSelectCartelas,
     handleBackFromSelection,
     handleWatchGame,
+    handlePlayNow,
     handleCellClick,
     switchCartela,
     callNextNumber,

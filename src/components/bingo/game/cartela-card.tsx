@@ -79,13 +79,13 @@ export function WatchingBanner() {
         ONLY
       </h3>
       <p className="text-xs text-gray-400 leading-relaxed font-semibold max-w-[180px]">
-        Game already
+        This round already
         <br />
-        started
+        started.
         <br />
-        Wait for
+        Tap PLAY NOW to
         <br />
-        round end.
+        start a new game.
       </p>
     </div>
   )
