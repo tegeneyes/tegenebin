@@ -341,6 +341,10 @@ function BingoAppInner() {
             try {
               players = await fetchPlayerCount({ data: { round_index: game.roundIndex, stake: game.stake } });
             } catch { /* fallback to stale stats */ }
+            if ((players ?? 0) < 2) {
+              toast.error(t("toast.need_players"));
+              return;
+            }
             game.handleWatchGame(players);
           }}
           onTopUp={() => { game.handleBackFromSelection(); game.setActiveTab("wallet"); }}

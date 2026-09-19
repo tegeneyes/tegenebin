@@ -11,8 +11,9 @@ import { MIN_PLAYERS } from "@/lib/game.functions"
 
 interface CartelaSelectionScreenProps {
   onBack: () => void
-  onConfirm: (selectedCartelas: Cartela[]) => void
+  onConfirm: (selected: Cartela[]) => void
   onWatch: () => void
+  onTopUp?: () => void
   onTopUp: () => void
   stake: number
   playBalance: number
@@ -84,8 +85,8 @@ export function CartelaSelectionScreen({
       if (selectedCartelas.length > 0) {
         onConfirm(selectedCartelas)
       } else {
-        // No selection — join as a watcher instead of returning to lobby
-        onWatch()
+        // No selection — go back to lobby (watching requires >= 2 players)
+        onBack()
       }
     }
 
@@ -94,7 +95,7 @@ export function CartelaSelectionScreen({
     const timer = setInterval(updateTimeLeft, 250)
 
     return () => clearInterval(timer)
-  }, [selectionEndsAt, selectedCartelas, onConfirm, onWatch])
+  }, [selectionEndsAt, selectedCartelas, onConfirm, onBack])
 
   const handleSelectCartela = async (cartela: Cartela) => {
     const taken = isTakenByOthers?.(cartela.id) ?? false
