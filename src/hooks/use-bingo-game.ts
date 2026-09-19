@@ -153,6 +153,7 @@ export function useBingoGame() {
   const handleBackFromSelection = useCallback(() => {
     // Manual back-out cancels any pending auto-rejoin.
     setAutoJoin({ active: false, stake: 0 })
+    setSelectionStartsAt(null)
     setGameMode("lobby")
   }, [])
 
@@ -161,6 +162,7 @@ export function useBingoGame() {
     setStake(s)
     setAutoJoin({ active: true, stake: s })
     setSelectionEndsAt(null)
+    setSelectionStartsAt(null)
     setLiveGameEndsAt(null)
     setLiveGameStake(null)
     setGameStartedAt(null)
@@ -220,6 +222,7 @@ export function useBingoGame() {
     setAutoJoin({ active: false, stake: 0 })
     setAutoJoinSecondsLeft(0)
     setSelectionEndsAt(null)
+    setSelectionStartsAt(null)
     setCartelas([])
     setActiveCartelaIndex(0)
     setCalledNumbers([])
@@ -243,6 +246,7 @@ export function useBingoGame() {
     setGameStats(prev => ({ ...prev, calledCount: 0 }))
     setShowWinModal(false)
     setSelectionEndsAt(null)
+    setSelectionStartsAt(null)
     setWinningCartela(null) // Reset winning cartela
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
