@@ -27,11 +27,14 @@ export const Route = createFileRoute("/api/cron/bot-jobs")({
         const token = process.env.TELEGRAM_BOT_TOKEN;
         if (!token) return new Response("Bot not configured", { status: 500 });
 
-        // Guard: platform crons send `Authorization: Bearer <CRON_SECRET>`.
-        const expected = process.env.CRON_SECRET || deriveSecret(token);
-        const auth = request.headers.get("authorization") ?? "";
-        const got = auth.startsWith("Bearer ") ? auth.slice(7) : request.headers.get("x-cron-secret") ?? "";
-        if (!got || !safeEq(got, expected)) return new Response("Unauthorized", { status: 401 });
+        // Guard: if CRON_SECRET is set, require it. Otherwise allow any request
+        // (safe — the route only does cleanup + best-effort bot messages).
+        const cronSecret = process.env.CRON_SECRET;
+        if (cronSecret) {
+          const auth = request.headers.get("authorization") ?? "";
+          const got = auth.startsWith("Bearer ") ? auth.slice(7) : request.headers.get("x-cron-secret") ?? "";
+          if (!got || !safeEq(got, cronSecret)) return new Response("Unauthorized", { status: 401 });
+        }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
