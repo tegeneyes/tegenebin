@@ -40,15 +40,27 @@ export interface WinNotifData {
   winnerTg: number
   username?: string | null
   payout: number
+  stake: number
   shortCode?: string | null
   playerCount: number
 }
 
-/** DM the winner and, if TELEGRAM_WINS_CHANNEL is set, post a public shout-out. */
-export async function notifyWin({ winnerTg, username, payout, shortCode, playerCount }: WinNotifData) {
+// Only "newsworthy" wins hit the public channel, so we never spam followers:
+// big payouts (>500 ETB) or high-multiplier highlights (≥200 ETB won off a
+// comparatively small bet, e.g. 200 ETB from a 10 ETB stake).
+function isNoteworthy(payout: number, stake: number) {
+  if (!Number.isFinite(payout) || payout <= 0) return false
+  if (payout > 500) return true
+  const multiplier = stake > 0 ? payout / stake : 0
+  return payout >= 200 && multiplier >= 20
+}
+
+/** DM the winner and, if TELEGRAM_WINS_CHANNEL is set, post a public shout-out only for noteworthy wins. */
+export async function notifyWin({ winnerTg, username, payout, stake, shortCode, playerCount }: WinNotifData) {
   if (!Number.isFinite(payout) || !winnerTg) return
   const roundTag = shortCode ? `#${shortCode}` : ""
 
+  // The winner always gets the personal congratulations.
   const dm =
     `🏆 <b>እንኳን ደስ አለዎት!</b>\n\n` +
     `ዙሩን <b>አሸንፈዋል</b> ${roundTag}!\n` +
@@ -57,10 +69,11 @@ export async function notifyWin({ winnerTg, username, payout, shortCode, playerC
   await sendBotText(winnerTg, dm)
 
   const channel = process.env.TELEGRAM_WINS_CHANNEL
-  if (!channel) return
+  if (!channel || !isNoteworthy(payout, stake)) return
   const displayName = username || `#${winnerTg}`
+  const highlight = stake > 0 ? ` 🚀 በ<b>${Math.round(stake)} ETB</b> ተወራርዷል!` : ""
   const post =
-    `🏆 <b>${displayName}</b> ብር <b>${Math.round(payout)}</b> አሸንፈዋል! 🎉\n` +
+    `🏆 <b>${displayName}</b> ብር <b>${Math.round(payout)}</b> አሸንፈዋል! 🎉${highlight}\n` +
     `${roundTag ? `ዙር ${roundTag} · ` : ""}${playerCount} ተጫዋቾች\n\n` +
     `👉 እርስዎም ይሞክሩ — በልዩ ቢንጎ እውነተኛ የብር ሽልማት ያሸንፉ!`
   await sendBotText(channel, post)

@@ -99,6 +99,7 @@ export const finishGame = createServerFn({ method: "POST" })
             winnerTg,
             username: winner.username,
             payout: Number(winner.payout ?? 0),
+            stake: data.stake,
             shortCode: (gRow as { short_code?: string | null } | null)?.short_code ?? null,
             playerCount: data.participants.length,
           })
