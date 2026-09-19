@@ -33,6 +33,15 @@ export function reportError(input: {
 }): void {
   if (typeof window === "undefined") return
   const message = String(input.message || "Unknown error")
+
+  // Ignore noise:
+  //  - "Script error." is a cross-origin throw (Telegram SDK etc.) with no info.
+  //  - anything raised by the reporter's own request (e.g. a network blip while
+  //    sending an error) — otherwise the reporter reports itself in a loop.
+  if (message.trim() === "Script error.") return
+  if (input.detail && /error-log\.functions/.test(input.detail)) return
+  if (/^(Failed to fetch|NetworkError|Load failed|Network request failed)$/i.test(message.trim())) return
+
   const key = `${input.source}|${message}`.slice(0, 200)
   if (!shouldSend(key)) return
   void logClientError({
