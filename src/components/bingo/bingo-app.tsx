@@ -420,22 +420,7 @@ function BingoAppInner() {
         {showHome && (
           <HomeScreen
             key="home"
-            onPlay={async (s) => {
-              // If the round is already in the calling phase, entering watch
-              // mode via Play requires >= 2 players — refuse lone watchers.
-              const SELECTION_MS = 30000
-              const CALL_INTERVAL_MS = 4000
-              const MAX_CALLS = 20
-              const ROUND_MS = SELECTION_MS + MAX_CALLS * CALL_INTERVAL_MS
-              const phase = Date.now() % ROUND_MS < SELECTION_MS ? "selecting" : "calling"
-              if (phase === "calling") {
-                try {
-                  const count = await fetchPlayerCount({ data: { round_index: game.roundIndex, stake: s } })
-                  if ((count ?? 0) < 2) { toast.error(t("toast.need_players")); return }
-                } catch { /* proceed — server will handle */ }
-              }
-              game.handlePlayClick(s)
-            }}
+            onPlay={game.handlePlayClick}
             onWatch={() => toast.info(t("home.no_live"))}
             walletBalance={game.wallet.playBalance}
             bonusBalance={bonusBalance}
