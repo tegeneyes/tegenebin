@@ -19,6 +19,7 @@ interface CartelaSelectionScreenProps {
   playBalance: number
   mainBalance: number
   selectionEndsAt: number | null
+  selectionStartsAt?: number | null
   livePlayers: number
   /** Returns true if a cartela ID is taken by another player in this round */
   isTakenByOthers?: (cartelaId: number) => boolean
@@ -47,6 +48,7 @@ export function CartelaSelectionScreen({
   playBalance,
   mainBalance,
   selectionEndsAt,
+  selectionStartsAt,
   livePlayers,
   isTakenByOthers,
   onReserve,
@@ -56,7 +58,12 @@ export function CartelaSelectionScreen({
   const [allCartelas] = useState<Cartela[]>(() => generateAllCartelas())
   const [selectedCartelas, setSelectedCartelas] = useState<Cartela[]>([])
   const getSecondsLeft = () => Math.max(0, Math.ceil(((selectionEndsAt ?? Date.now()) - Date.now()) / 1000))
+  const getWaitSeconds = () => {
+    if (!selectionStartsAt) return 0
+    return Math.max(0, Math.ceil((selectionStartsAt - Date.now()) / 1000))
+  }
   const [timeLeft, setTimeLeft] = useState(() => getSecondsLeft())
+  const [waitLeft, setWaitLeft] = useState(() => getWaitSeconds())
   const finishedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -77,7 +84,10 @@ export function CartelaSelectionScreen({
   // Timer countdown follows the shared game deadline, so it does not reset when leaving and returning.
   useEffect(() => {
     const updateTimeLeft = () => {
-      const nextTimeLeft = getSecondsLeft()
+      const w = getWaitSeconds()
+      setWaitLeft(w)
+      // Only count down selection after the wait is over.
+      const nextTimeLeft = w > 0 ? 0 : getSecondsLeft()
       setTimeLeft(nextTimeLeft)
 
       if (nextTimeLeft > 0 || finishedRef.current) return
@@ -95,7 +105,7 @@ export function CartelaSelectionScreen({
     const timer = setInterval(updateTimeLeft, 250)
 
     return () => clearInterval(timer)
-  }, [selectionEndsAt, selectedCartelas, onConfirm, onBack])
+  }, [selectionEndsAt, selectionStartsAt, selectedCartelas, onConfirm, onBack])
 
   const handleSelectCartela = async (cartela: Cartela) => {
     const taken = isTakenByOthers?.(cartela.id) ?? false
@@ -224,12 +234,18 @@ export function CartelaSelectionScreen({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
-          <span className={cn(
-            "font-mono text-base font-bold",
-            timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
-          )}>
-            {timeLeft}s
-          </span>
+          {waitLeft > 0 ? (
+            <span className="font-mono text-base font-bold text-bingo-cyan">
+              {waitLeft}s
+            </span>
+          ) : (
+            <span className={cn(
+              "font-mono text-base font-bold",
+              timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
+            )}>
+              {timeLeft}s
+            </span>
+          )}
         </div>
       </div>
 

@@ -352,6 +352,7 @@ function BingoAppInner() {
           playBalance={game.wallet.playBalance}
           mainBalance={game.wallet.mainBalance}
           selectionEndsAt={game.selectionEndsAt}
+          selectionStartsAt={game.selectionStartsAt}
           livePlayers={roundCartelas.playerCount || livePlayers}
           isTakenByOthers={(id) => roundCartelas.isTaken(id) && !game.cartelas.some(c => c.id === id)}
           onReserve={tg ? async (cartelaId) => {

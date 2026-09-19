@@ -61,6 +61,7 @@ export function useBingoGame() {
   const [wallet, setWallet] = useState({ mainBalance: 0, playBalance: 0 })
   const [stake, setStake] = useState(10)
   const [selectionEndsAt, setSelectionEndsAt] = useState<number | null>(null)
+  const [selectionStartsAt, setSelectionStartsAt] = useState<number | null>(null)
   const [liveGameEndsAt, setLiveGameEndsAt] = useState<number | null>(null)
   const [liveGameStake, setLiveGameStake] = useState<number | null>(null)
   const [gameStartedAt, setGameStartedAt] = useState<number | null>(null)
@@ -108,6 +109,7 @@ export function useBingoGame() {
 
     if (round.phase === "selecting") {
       // Selection window is open — pick cartelas.
+      setSelectionStartsAt(null)
       setSelectionEndsAt(round.selectingEndsAt)
       setGameMode("selecting")
     } else {
@@ -115,6 +117,7 @@ export function useBingoGame() {
       // so the player can pick cartelas for the upcoming round.
       const nextRoundStart = (round.index + 1) * ROUND_MS
       const nextRound = currentRound(nextRoundStart)
+      setSelectionStartsAt(nextRoundStart)
       setSelectionEndsAt(nextRound.selectingEndsAt)
       setRoundIndex(nextRound.index)
       setGameStartedAt(nextRound.callingStartsAt)
@@ -504,6 +507,7 @@ export function useBingoGame() {
     wallet,
     stake,
     selectionEndsAt,
+    selectionStartsAt,
     roundIndex,
     waitTimeLeft,
     autoJoinActive: autoJoin.active,
