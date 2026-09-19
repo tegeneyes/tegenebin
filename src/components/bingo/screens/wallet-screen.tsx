@@ -112,7 +112,7 @@ export function WalletScreen() {
 
       {/* Keep forms mounted so switching tabs doesn't re-fetch or reset state */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div hidden={tab !== "deposit"}><DepositForm telegramId={tg?.id ?? null} onDone={refresh} config={config} /></div>
+        <div hidden={tab !== "deposit"}><DepositForm telegramId={tg?.id ?? null} onDone={refresh} onSuccess={() => setTab("history")} config={config} /></div>
         {tg && (
           <>
             <div hidden={tab !== "withdraw"}><WithdrawForm telegramId={tg.id} balance={balance} onDone={refresh} /></div>
@@ -134,7 +134,7 @@ function TabBtn({ icon, label, active, onClick }: { icon: React.ReactNode; label
   )
 }
 
-function DepositForm({ telegramId, onDone, config }: { telegramId: number | null; onDone: () => void; config: DepositConfig }) {
+function DepositForm({ telegramId, onDone, onSuccess, config }: { telegramId: number | null; onDone: () => void; onSuccess?: () => void; config: DepositConfig }) {
   const { t } = useI18n()
   const [provider, setProvider] = useState<"telebirr" | "cbe">("telebirr")
   const [amount, setAmount] = useState("")
@@ -305,7 +305,7 @@ function DepositForm({ telegramId, onDone, config }: { telegramId: number | null
 
       <SuccessModal
         open={success}
-        onClose={() => setSuccess(false)}
+        onClose={() => { setSuccess(false); onSuccess?.() }}
         title={verified ? t("wallet.verified_title") : t("wallet.deposit_ok_title")}
         message={verified ? t("wallet.verified_msg") : t("wallet.deposit_ok_msg")}
       />
