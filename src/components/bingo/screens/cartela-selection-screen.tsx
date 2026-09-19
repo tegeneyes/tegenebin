@@ -237,8 +237,8 @@ export function CartelaSelectionScreen({
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
           {waitLeft > 0 ? (
-            <span className="font-mono text-base font-bold text-bingo-cyan">
-              {waitLeft}s
+            <span className="text-bingo-cyan text-xs font-medium">
+              ⏳ {t("sel.waiting")}
             </span>
           ) : (
             <span className={cn(
@@ -354,8 +354,8 @@ export function CartelaSelectionScreen({
           <div className="flex flex-col items-end">
             <span className="text-gray-400 text-[10px] uppercase tracking-wider">{t("sel.starts_in")}</span>
             {waitLeft > 0 ? (
-              <span className="font-mono text-lg font-bold leading-none text-bingo-cyan">
-                {waitLeft}s
+              <span className="text-bingo-cyan text-xs font-medium">
+                ⏳ {t("sel.waiting")}
               </span>
             ) : (
               <span className={cn(
