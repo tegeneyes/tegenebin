@@ -420,24 +420,7 @@ function BingoAppInner() {
         {showHome && (
           <HomeScreen
             key="home"
-            onPlay={async (s) => {
-              const SELECTION_MS = 30000
-              const CALL_INTERVAL_MS = 4000
-              const MAX_CALLS = 20
-              const ROUND_MS = SELECTION_MS + MAX_CALLS * CALL_INTERVAL_MS
-              const now = Date.now()
-              const currentRound = Math.floor(now / ROUND_MS)
-              const inSelection = now % ROUND_MS < SELECTION_MS
-              if (!inSelection) {
-                // Calling phase — check if the NEXT round has enough players.
-                // If not, stay on home with a toast.
-                try {
-                  const count = await fetchPlayerCount({ data: { round_index: currentRound + 1, stake: s } })
-                  if ((count ?? 0) < 2) { toast.error(t("toast.need_players")); return }
-                } catch { /* proceed — server will handle */ }
-              }
-              game.handlePlayClick(s)
-            }}
+            onPlay={game.handlePlayClick}
             onWatch={() => toast.info(t("home.no_live"))}
             walletBalance={game.wallet.playBalance}
             bonusBalance={bonusBalance}
