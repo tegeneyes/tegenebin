@@ -82,7 +82,56 @@ export const finishGame = createServerFn({ method: "POST" })
       _prize_pool: data.prize_pool ?? 0,
     } as never)
     if (error) throw new Error(error.message)
+
+    // Best-effort proactive notifications: DM the winner and, if configured,
+    // post a public win shout-out. Failure here must not fail the game record.
+    if (winnerTg) {
+      try {
+        const { data: gRow } = await supabaseAdmin
+          .from("games")
+          .select("short_code")
+          .eq("id", gameId as string)
+          .maybeSingle()
+        const winner = data.participants.find(p => Number(p.telegram_id) === winnerTg)
+        if (winner) {
+          const { notifyWin } = await import("@/lib/telegram-bot")
+          await notifyWin({
+            winnerTg,
+            username: winner.username,
+            payout: Number(winner.payout ?? 0),
+            shortCode: (gRow as { short_code?: string | null } | null)?.short_code ?? null,
+            playerCount: data.participants.length,
+          })
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+
     return { game_id: gameId as string }
+  })
+
+/** Recent winners for the public home ticker (social proof). */
+export const getRecentWinners = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { data: rows, error } = await supabaseAdmin
+      .from("game_results")
+      .select("telegram_id, username, payout, created_at, games(short_code, stake, player_count, prize_pool)")
+      .eq("is_winner", true)
+      .gt("payout", 0)
+      .order("created_at", { ascending: false })
+      .limit(10)
+    if (error) throw new Error(error.message)
+    return (rows ?? []).map(r => ({
+      telegram_id: Number(r.telegram_id),
+      username: r.username || `#${r.telegram_id}`,
+      payout: Number(r.payout || 0),
+      won_at: r.created_at,
+      short_code: (r.games as { short_code?: string | null } | null)?.short_code ?? null,
+      stake: Number((r.games as { stake?: unknown } | null)?.stake ?? 0),
+      player_count: Number((r.games as { player_count?: unknown } | null)?.player_count ?? 0),
+    }))
   })
 
 export const getGameHistory = createServerFn({ method: "POST" })

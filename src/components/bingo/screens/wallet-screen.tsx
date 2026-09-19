@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start"
 import { History, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, Gift, Copy, Check, Loader2, ClipboardPaste } from "lucide-react"
 import { ScreenWrapper } from "@/components/bingo/screen-wrapper"
 import { useTelegramUser } from "@/hooks/use-telegram-user"
-import { ensurePlayer, getWallet, requestDeposit, requestWithdrawal, redeemPromo } from "@/lib/wallet.functions"
+import { ensurePlayer, getWallet, requestDeposit, requestWithdrawal, redeemPromo, getActiveOffers } from "@/lib/wallet.functions"
 import { getDepositInstructions } from "@/lib/deposit-config.functions"
 import { TELEBIRR_PHONE, CBE_ACCOUNT, ACCOUNT_NAME } from "@/lib/payment-config"
 import { parseSms } from "@/lib/sms-parser"
@@ -414,7 +414,16 @@ function PromoForm({ telegramId, onDone }: { telegramId: number; onDone: () => v
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ credited: number } | null>(null)
+  const [offers, setOffers] = useState<{ code: string; type: string; amount: number; remaining: number | null }[]>([])
   const redeem = useServerFn(redeemPromo)
+  const fetchOffers = useServerFn(getActiveOffers)
+
+  useEffect(() => {
+    let active = true
+    fetchOffers().then((r: any) => { if (active) setOffers(r ?? []) }).catch(() => {})
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -433,15 +442,46 @@ function PromoForm({ telegramId, onDone }: { telegramId: number; onDone: () => v
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <div className="space-y-3">
       <p className="text-xs text-gray-400">{t("wallet.promo_desc")}</p>
-      <Input label={t("wallet.promo_label")} value={code} onChange={v => setCode(v.toUpperCase())} required />
-      {error && <p className="text-red-400 text-xs">{error}</p>}
-      {result && <p className="text-bingo-green text-xs">{t("wallet.promo_credited", { n: result.credited })}</p>}
-      <button type="submit" disabled={submitting || !code} className="w-full py-3 rounded-xl bg-bingo-green text-bingo-deep-purple font-black uppercase tracking-wider text-sm disabled:opacity-50">
-        {submitting ? t("wallet.redeeming") : t("wallet.redeem")}
-      </button>
-    </form>
+
+      {offers.length > 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-white/50">{t("wallet.active_promos")}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {offers.map(o => (
+              <button
+                key={o.code}
+                type="button"
+                onClick={() => setCode(o.code)}
+                className="px-2.5 py-1 rounded-lg border border-bingo-gold/40 bg-bingo-gold/10 text-[11px] font-bold text-bingo-gold-soft hover:bg-bingo-gold/20 transition-colors"
+              >
+                {o.code}
+                <span className="ml-1.5 text-white/70 font-sans font-semibold">
+                  {o.type === "deposit_match" ? t("wallet.promo_deposit_match") : `+${Math.round(o.amount)} ETB`}
+                </span>
+                {o.remaining != null && <span className="ml-1.5 text-white/40">· {t("wallet.promo_left", { n: o.remaining })}</span>}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-500">{t("wallet.tap_code")}</p>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Input label={t("wallet.promo_label")} value={code} onChange={v => setCode(v.toUpperCase())} required />
+        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {result && <p className="text-bingo-green text-xs">{t("wallet.promo_credited", { n: result.credited })}</p>}
+        <button type="submit" disabled={submitting || !code} className="w-full py-3 rounded-xl bg-bingo-green text-bingo-deep-purple font-black uppercase tracking-wider text-sm disabled:opacity-50">
+          {submitting ? t("wallet.redeeming") : t("wallet.redeem")}
+        </button>
+      </form>
+
+      <div className="rounded-xl border border-bingo-green/25 bg-bingo-green/[0.07] px-3 py-2 flex items-start gap-2">
+        <Gift size={14} className="text-bingo-green shrink-0 mt-0.5" />
+        <p className="text-[11px] leading-snug text-white/85">{t("wallet.promo_first_deposit")}</p>
+      </div>
+    </div>
   )
 }
 

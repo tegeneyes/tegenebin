@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TegeAdminRouteImport } from './routes/tege.admin'
+import { Route as ApiCronBotJobsRouteImport } from './routes/api/cron/bot-jobs'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const TegeAdminRoute = TegeAdminRouteImport.update({
   path: '/tege/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronBotJobsRoute = ApiCronBotJobsRouteImport.update({
+  id: '/api/cron/bot-jobs',
+  path: '/api/cron/bot-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTelegramWebhookRoute =
   ApiPublicTelegramWebhookRouteImport.update({
     id: '/api/public/telegram/webhook',
@@ -33,30 +39,47 @@ const ApiPublicTelegramWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/tege/admin': typeof TegeAdminRoute
+  '/api/cron/bot-jobs': typeof ApiCronBotJobsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/tege/admin': typeof TegeAdminRoute
+  '/api/cron/bot-jobs': typeof ApiCronBotJobsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/tege/admin': typeof TegeAdminRoute
+  '/api/cron/bot-jobs': typeof ApiCronBotJobsRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/tege/admin' | '/api/public/telegram/webhook'
+  fullPaths:
+    | '/'
+    | '/tege/admin'
+    | '/api/cron/bot-jobs'
+    | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/tege/admin' | '/api/public/telegram/webhook'
-  id: '__root__' | '/' | '/tege/admin' | '/api/public/telegram/webhook'
+  to:
+    | '/'
+    | '/tege/admin'
+    | '/api/cron/bot-jobs'
+    | '/api/public/telegram/webhook'
+  id:
+    | '__root__'
+    | '/'
+    | '/tege/admin'
+    | '/api/cron/bot-jobs'
+    | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TegeAdminRoute: typeof TegeAdminRoute
+  ApiCronBotJobsRoute: typeof ApiCronBotJobsRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
 
@@ -76,6 +99,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TegeAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/bot-jobs': {
+      id: '/api/cron/bot-jobs'
+      path: '/api/cron/bot-jobs'
+      fullPath: '/api/cron/bot-jobs'
+      preLoaderRoute: typeof ApiCronBotJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/webhook': {
       id: '/api/public/telegram/webhook'
       path: '/api/public/telegram/webhook'
@@ -89,6 +119,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TegeAdminRoute: TegeAdminRoute,
+  ApiCronBotJobsRoute: ApiCronBotJobsRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
 export const routeTree = rootRouteImport

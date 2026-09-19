@@ -1,11 +1,12 @@
 "use client"
 
-import { Play, Eye, Megaphone, Users, Gift } from "lucide-react"
+import { Play, Eye, Megaphone, Users, Gift, Trophy } from "lucide-react"
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useServerFn } from "@tanstack/react-start"
 import { ScreenWrapper } from "@/components/bingo/screen-wrapper"
 import { getActiveAnnouncement } from "@/lib/admin-tools.functions"
+import { getRecentWinners } from "@/lib/game.functions"
 import { useTelegramUser } from "@/hooks/use-telegram-user"
 import { useLobbyPresence } from "@/hooks/use-lobby-presence"
 import { paddedCount } from "@/lib/bingo/fake-players"
@@ -24,7 +25,9 @@ const STAKES = [10, 20, 50, 100] as const
 export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 0 }: HomeScreenProps) {
   const [selectedStake, setSelectedStake] = useState<number>(10)
   const [announcement, setAnnouncement] = useState<{ id: string; message: string } | null>(null)
+  const [winners, setWinners] = useState<{ username: string; payout: number }[]>([])
   const fetchAnnouncement = useServerFn(getActiveAnnouncement)
+  const fetchWinners = useServerFn(getRecentWinners)
   const tg = useTelegramUser()
   const { t } = useI18n()
   const livePlayers = useLobbyPresence({ telegramId: tg?.id, stake: 0, enabled: !!tg, username: tg?.username || tg?.first_name })
@@ -38,6 +41,10 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
       try {
         const a = await fetchAnnouncement()
         if (active) setAnnouncement(a as any)
+      } catch { /* ignore */ }
+      try {
+        const w = await fetchWinners()
+        if (active) setWinners((w as any) ?? [])
       } catch { /* ignore */ }
     }
     load()
@@ -97,6 +104,29 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Recent winners ticker — social proof */}
+        {winners.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative w-full max-w-md mb-3 rounded-2xl border border-bingo-magenta/25 bg-gradient-to-r from-bingo-magenta/10 via-bingo-gold/5 to-bingo-magenta/10 overflow-hidden"
+          >
+            <div className="flex items-center gap-2.5 px-3 py-2">
+              <Trophy size={15} className="text-bingo-gold-soft shrink-0" />
+              <div className="relative flex-1 overflow-hidden">
+                <div className="marquee-track">
+                  <span className="text-[12px] leading-snug text-white/85 pr-12">
+                    {winners.map(w => `🏆 ${w.username} +${Math.round(w.payout)} ETB`).join("   ·   ")}
+                  </span>
+                  <span className="text-[12px] leading-snug text-white/85 pr-12" aria-hidden="true">
+                    {winners.map(w => `🏆 ${w.username} +${Math.round(w.payout)} ETB`).join("   ·   ")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Wallet ribbon */}
 

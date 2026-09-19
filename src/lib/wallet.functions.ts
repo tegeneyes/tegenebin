@@ -365,6 +365,28 @@ export const redeemPromo = createServerFn({ method: "POST" })
     return result as { ok: boolean; credited: number; type: string }
   })
 
+/** Active promo codes surfaced in the Wallet (social/offers). */
+export const getActiveOffers = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const now = new Date().toISOString()
+    const { data: rows, error } = await supabaseAdmin
+      .from("promo_codes")
+      .select("code, type, amount, max_redemptions, redemptions_count, expires_at")
+      .eq("active", true)
+      .or(`expires_at.is.null,expires_at.gte.${now}`)
+      .order("created_at", { ascending: false })
+      .limit(20)
+    if (error) throw new Error(error.message)
+    return (rows ?? []).map(r => ({
+      code: r.code,
+      type: r.type,
+      amount: Number(r.amount),
+      remaining: r.max_redemptions != null ? Math.max(0, r.max_redemptions - (r.redemptions_count ?? 0)) : null,
+      expires_at: r.expires_at,
+    }))
+  })
+
 // ───────── Admin ─────────
 
 export const adminListTransactions = createServerFn({ method: "POST" })
