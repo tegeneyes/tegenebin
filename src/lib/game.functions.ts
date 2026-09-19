@@ -39,7 +39,9 @@ export const startGame = createServerFn({ method: "POST" })
       _amount: data.total_stake,
     } as never)
     if (error) throw new Error(error.message)
-    return { balance: Number(newBalance) }
+    // The player count is the same value that passed the MIN_PLAYERS gate, so
+    // the client can display the true round size (not the user's own cartelas).
+    return { balance: Number(newBalance), players: Number(count) }
   })
 
 export const finishGame = createServerFn({ method: "POST" })

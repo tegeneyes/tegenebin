@@ -137,7 +137,7 @@ function BingoAppInner() {
       game.setWallet({ mainBalance: res.balance, playBalance: res.balance });
       // Bonus is consumed first server-side; mirror it locally.
       setBonusBalance(b => Math.max(0, b - totalStake));
-      game.handleSelectCartelas(selected);
+      game.handleSelectCartelas(selected, res.players);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to start game";
       const low = msg.toLowerCase();
@@ -237,7 +237,7 @@ function BingoAppInner() {
         const isWinner = game.winnerIsCurrentUser && winningCartelaId !== null
         const participants = rows.map(r => ({
           telegram_id: r.telegram_id,
-          username: null as string | null,
+          username: r.telegram_id === tg.id ? (tg.username || tg.first_name || null) : null,
           cartela_id: r.cartela_id,
           is_winner: isWinner && r.telegram_id === tg.id && r.cartela_id === winningCartelaId,
           payout: isWinner && r.telegram_id === tg.id && r.cartela_id === winningCartelaId

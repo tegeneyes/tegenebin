@@ -117,7 +117,7 @@ export function useBingoGame() {
     }
   }, [stake, unlockAudio])
 
-  const handleSelectCartelas = useCallback((selected: Cartela[]) => {
+  const handleSelectCartelas = useCallback((selected: Cartela[], players?: number) => {
     // Stake deduction is handled server-side by the caller (see BingoApp.handleConfirmCartelas)
     unlockAudio()
     // A game actually started — stop any waiting auto-rejoin loop.
@@ -125,13 +125,16 @@ export function useBingoGame() {
     setAutoJoinSecondsLeft(0)
     setCartelas(selected)
     setCalledNumbers([])
+    // `players` is the true round size returned by startGame's MIN_PLAYERS gate,
+    // not the number of cartelas this user bought.
+    const roundPlayers = players ?? selected.length
     setGameStats(prev => ({
       ...prev,
       calledCount: 0,
       gameId: prev.gameId || `R-${currentRound().index}`,
       bet: stake,
-      players: selected.length,
-      derash: Math.round(selected.length * stake * 1.8),
+      players: roundPlayers,
+      derash: Math.round(roundPlayers * stake * 1.8),
     }))
     setSelectionEndsAt(null)
     setGameMode("playing")
