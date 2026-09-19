@@ -421,16 +421,18 @@ function BingoAppInner() {
           <HomeScreen
             key="home"
             onPlay={async (s) => {
-              // Selection phase → always allow (min-2 gate is at confirm).
-              // Calling phase → entering watch mode requires >= 2 players.
               const SELECTION_MS = 30000
               const CALL_INTERVAL_MS = 4000
               const MAX_CALLS = 20
               const ROUND_MS = SELECTION_MS + MAX_CALLS * CALL_INTERVAL_MS
-              const inSelection = Date.now() % ROUND_MS < SELECTION_MS
+              const now = Date.now()
+              const currentRound = Math.floor(now / ROUND_MS)
+              const inSelection = now % ROUND_MS < SELECTION_MS
               if (!inSelection) {
+                // Calling phase — check if the NEXT round has enough players.
+                // If not, stay on home with a toast.
                 try {
-                  const count = await fetchPlayerCount({ data: { round_index: game.roundIndex, stake: s } })
+                  const count = await fetchPlayerCount({ data: { round_index: currentRound + 1, stake: s } })
                   if ((count ?? 0) < 2) { toast.error(t("toast.need_players")); return }
                 } catch { /* proceed — server will handle */ }
               }

@@ -111,9 +111,15 @@ export function useBingoGame() {
       setSelectionEndsAt(round.selectingEndsAt)
       setGameMode("selecting")
     } else {
-      // Calls already running — watch this round, then return to the lobby.
-      setSelectionEndsAt(null)
-      setGameMode("watching")
+      // Calls already running — drop into the NEXT selection window
+      // so the player can pick cartelas for the upcoming round.
+      const nextRoundStart = (round.index + 1) * ROUND_MS
+      const nextRound = currentRound(nextRoundStart)
+      setSelectionEndsAt(nextRound.selectingEndsAt)
+      setRoundIndex(nextRound.index)
+      setGameStartedAt(nextRound.callingStartsAt)
+      setLiveGameEndsAt(nextRound.callingEndsAt)
+      setGameMode("selecting")
     }
   }, [stake, unlockAudio])
 
