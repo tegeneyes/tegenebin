@@ -20,14 +20,14 @@ export function useRoundCartelas(opts: {
 }) {
   const { roundIndex, stake, enabled } = opts
   const [takenIds, setTakenIds] = useState<Set<number>>(new Set())
-  const [playerCount, setPlayerCount] = useState(0)
+  const [playerIds, setPlayerIds] = useState<Set<number>>(new Set())
   const fetchedRef = useRef(false)
 
   // Fetch initial taken cartelas
   useEffect(() => {
     if (!enabled || roundIndex < 0 || stake <= 0) {
       setTakenIds(new Set())
-      setPlayerCount(0)
+      setPlayerIds(new Set())
       return
     }
 
@@ -46,7 +46,7 @@ export function useRoundCartelas(opts: {
           players.add(r.telegram_id)
         }
         setTakenIds(taken)
-        setPlayerCount(players.size)
+        setPlayerIds(players)
         fetchedRef.current = true
       } catch {
         // ignore
@@ -79,7 +79,11 @@ export function useRoundCartelas(opts: {
                 next.add(row.cartela_id)
                 return next
               })
-              setPlayerCount(prev => prev + 1)
+              setPlayerIds(prev => {
+                const next = new Set(prev)
+                next.add(row.telegram_id)
+                return next
+              })
             }
           } else if (payload.eventType === "DELETE") {
             const row = payload.old as RoundCartela
@@ -89,7 +93,26 @@ export function useRoundCartelas(opts: {
                 next.delete(row.cartela_id)
                 return next
               })
-              setPlayerCount(prev => Math.max(0, prev - 1))
+              // Check if this player still has other reservations in the
+              // current set before removing them from the player count.
+              setPlayerIds(prev => {
+                const next = new Set(prev)
+                // Optimistically remove; the INSERT handler will re-add if
+                // the player still has other cartelas in this round.
+                next.delete(row.telegram_id)
+                return next
+              })
+              // Re-fetch to correct the count (handles multi-cartela players)
+              supabase.rpc("get_round_cartelas", {
+                _round_index: roundIndex,
+                _stake: stake,
+              } as never).then(({ data: rows }) => {
+                const players = new Set<number>()
+                for (const r of (rows ?? []) as RoundCartela[]) {
+                  players.add(r.telegram_id)
+                }
+                setPlayerIds(players)
+              }).catch(() => {})
             }
           }
         }
@@ -101,5 +124,5 @@ export function useRoundCartelas(opts: {
 
   const isTaken = useCallback((cartelaId: number) => takenIds.has(cartelaId), [takenIds])
 
-  return { takenIds, isTaken, playerCount }
+  return { takenIds, isTaken, playerCount: playerIds.size }
 }
