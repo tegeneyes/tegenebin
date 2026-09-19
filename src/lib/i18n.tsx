@@ -190,11 +190,11 @@ const en: Dict = {
   // App toasts
   "toast.suspended": "Your account is suspended. Contact support.",
   "toast.insufficient": "Insufficient balance — joining as a watcher.",
-  "toast.need_players": "At least 2 players are required to start a game. Waiting for the next round.",
+  "toast.need_players": "More players are needed to start a game — waiting for the next round.",
   "toast.invalid_state": "Something went wrong — please try selecting your cartelas again.",
 
   // Auto-rejoin waiting banner
-  "auto.join_waiting": "Waiting for a 2nd player — auto rejoining the next round in {seconds}s.",
+  "auto.join_waiting": "Waiting for players — auto joining the next round in {seconds}s.",
   "auto.cancel": "Cancel",
 }
 
@@ -371,10 +371,10 @@ const am: Dict = {
 
   "toast.suspended": "መለያዎ ታግዷል። ድጋፍን ያነጋግሩ።",
   "toast.insufficient": "በቂ ቀሪ ሂሳብ የለም — እንደ ተመልካች ነው የሚገቡት።",
-  "toast.need_players": "ጨዋታ ለመጀመር ቢያንስ 2 ተጫዋቾች ያስፈልጋሉ። ለሚቀጥለው ዙር ይጠብቁ።",
+  "toast.need_players": "ጨዋታ ለመጀመር ተጨማሪ ተጫዋቾች ያስፈልጋሉ። ለሚቀጥለው ዙር ይጠብቁ።",
   "toast.invalid_state": "የሆነ ችግር ተፈጠረ — እባክዎ ካርቴላዎን እንደገና ለመምረጥ ይሞክሩ።",
 
-  "auto.join_waiting": "ለ2ኛ ተጫዋች በመጠባበቅ ላይ — በ{seconds} ሰከንድ ውስጥ ወደሚቀጥለው ዙር በመግባት ላይ።",
+  "auto.join_waiting": "ተጫዋቾችን በመጠባበቅ ላይ — በ{seconds} ሰከንድ ውስጥ ወደሚቀጥለው ዙር በመግባት ላይ።",
   "auto.cancel": "ሰርዝ",
 }
 
