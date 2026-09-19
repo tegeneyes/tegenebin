@@ -16,9 +16,13 @@ const ROUND_MS = SELECTION_MS + CALLING_MS
 
 // Continuous rounds on a shared wall-clock, so every player is in the same
 // phase: selection (30s) → 20 calls → selection → 20 calls …
-function currentRound(now = Date.now()) {
-  const index = Math.floor(now / ROUND_MS)
-  const start = index * ROUND_MS
+// Each stake gets its own offset so 10 ETB and 20 ETB games run independently.
+const STAKE_OFFSETS: Record<number, number> = { 10: 0, 20: ROUND_MS / 2 }
+function currentRound(now = Date.now(), stake = 10) {
+  const offset = STAKE_OFFSETS[stake] ?? 0
+  const adjusted = now - offset
+  const index = Math.floor(adjusted / ROUND_MS)
+  const start = index * ROUND_MS + offset
   const selectingEndsAt = start + SELECTION_MS
   const callingStartsAt = selectingEndsAt
   const callingEndsAt = start + ROUND_MS
@@ -90,7 +94,7 @@ export function useBingoGame() {
     const nextStake = selectedStake ?? stake
     if (selectedStake) setStake(selectedStake)
 
-    const round = currentRound()
+    const round = currentRound(Date.now(), nextStake)
 
     // Reset the player's own state for the round they are joining.
     setCartelas([])
@@ -201,8 +205,8 @@ export function useBingoGame() {
     const schedule = () => {
       if (timerId) clearTimeout(timerId)
       const now = Date.now()
-      const r = currentRound(now)
-      const start = (r.index + 1) * ROUND_MS
+      const r = currentRound(now, autoJoin.stake)
+      const start = (r.index + 1) * ROUND_MS + (STAKE_OFFSETS[autoJoin.stake] ?? 0)
       const delay = Math.max(0, start - now)
       timerId = setTimeout(() => {
         handlePlayClick(autoJoin.stake)
@@ -211,8 +215,8 @@ export function useBingoGame() {
 
     tickId = setInterval(() => {
       const now = Date.now()
-      const r = currentRound(now)
-      const toNext = (r.index + 1) * ROUND_MS - now
+      const r = currentRound(now, autoJoin.stake)
+      const toNext = (r.index + 1) * ROUND_MS + (STAKE_OFFSETS[autoJoin.stake] ?? 0) - now
       setAutoJoinSecondsLeft(Math.max(0, Math.ceil(toNext / 1000)))
     }, 1000)
 
@@ -224,7 +228,7 @@ export function useBingoGame() {
   }, [autoJoin.active, autoJoin.stake, gameMode, handlePlayClick])
 
   const handleWatchGame = useCallback((players?: number) => {
-    const round = currentRound()
+    const round = currentRound(Date.now(), stake)
     // Watching is not the auto-rejoin path — stop waiting.
     setAutoJoin({ active: false, stake: 0 })
     setAutoJoinSecondsLeft(0)
