@@ -353,12 +353,18 @@ export function CartelaSelectionScreen({
           </div>
           <div className="flex flex-col items-end">
             <span className="text-gray-400 text-[10px] uppercase tracking-wider">{t("sel.starts_in")}</span>
-            <span className={cn(
-              "font-mono text-lg font-bold leading-none",
-              timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
-            )}>
-              {timeLeft}s
-            </span>
+            {waitLeft > 0 ? (
+              <span className="font-mono text-lg font-bold leading-none text-bingo-cyan">
+                {waitLeft}s
+              </span>
+            ) : (
+              <span className={cn(
+                "font-mono text-lg font-bold leading-none",
+                timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
+              )}>
+                {timeLeft}s
+              </span>
+            )}
           </div>
         </div>
         {maxCartelas === 0 ? (
