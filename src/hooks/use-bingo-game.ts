@@ -113,16 +113,23 @@ export function useBingoGame() {
       setSelectionEndsAt(round.selectingEndsAt)
       setGameMode("selecting")
     } else {
-      // Calls already running — drop into the NEXT selection window
-      // so the player can pick cartelas for the upcoming round.
-      const nextRoundStart = (round.index + 1) * ROUND_MS
-      const nextRound = currentRound(nextRoundStart)
-      setSelectionStartsAt(nextRoundStart)
-      setSelectionEndsAt(nextRound.selectingEndsAt)
-      setRoundIndex(nextRound.index)
-      setGameStartedAt(nextRound.callingStartsAt)
-      setLiveGameEndsAt(nextRound.callingEndsAt)
-      setGameMode("selecting")
+      // Calls already running — drop into watching mode for the current game.
+      // After it finishes, player returns to lobby and can select cartelas for the next round.
+      setCartelas([])
+      setSelectionStartsAt(null)
+      setSelectionEndsAt(null)
+      setCalledNumbers([])
+      setShowWinModal(false)
+      setWinningCartela(null)
+      setWinningDisplayName(null)
+      setWinnerIsCurrentUser(false)
+      setGameStats(prev => ({ ...prev, calledCount: 0, gameId: `R-${round.index}`, bet: stake, players: prev.players }))
+      setGameSequence(shuffleNumbers(round.index))
+      setRoundIndex(round.index)
+      setGameStartedAt(round.callingStartsAt)
+      setLiveGameEndsAt(round.callingEndsAt)
+      setLiveGameStake(stake)
+      setGameMode("playing")
     }
   }, [stake, unlockAudio])
 
