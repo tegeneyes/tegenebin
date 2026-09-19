@@ -90,6 +90,8 @@ export function CartelaSelectionScreen({
       const nextTimeLeft = w > 0 ? 0 : getSecondsLeft()
       setTimeLeft(nextTimeLeft)
 
+      // Don't finish while still waiting for the next round to start.
+      if (w > 0) return
       if (nextTimeLeft > 0 || finishedRef.current) return
       finishedRef.current = true
       if (selectedCartelas.length > 0) {
