@@ -67,6 +67,8 @@ export function useBingoGame() {
   const [gameSequence, setGameSequence] = useState<number[]>([])
   const [roundIndex, setRoundIndex] = useState(0)
   const [waitTimeLeft, setWaitTimeLeft] = useState(0)
+  const [autoJoin, setAutoJoin] = useState<{ active: boolean; stake: number }>({ active: false, stake: 0 })
+  const [autoJoinSecondsLeft, setAutoJoinSecondsLeft] = useState(0)
   const audioUnlockedRef = useRef(false)
 
   const activeCard = cartelas[activeCartelaIndex]?.card || []
@@ -118,6 +120,9 @@ export function useBingoGame() {
   const handleSelectCartelas = useCallback((selected: Cartela[]) => {
     // Stake deduction is handled server-side by the caller (see BingoApp.handleConfirmCartelas)
     unlockAudio()
+    // A game actually started — stop any waiting auto-rejoin loop.
+    setAutoJoin({ active: false, stake: 0 })
+    setAutoJoinSecondsLeft(0)
     setCartelas(selected)
     setCalledNumbers([])
     setGameStats(prev => ({
@@ -134,11 +139,74 @@ export function useBingoGame() {
 
 
   const handleBackFromSelection = useCallback(() => {
+    // Manual back-out cancels any pending auto-rejoin.
+    setAutoJoin({ active: false, stake: 0 })
     setGameMode("lobby")
   }, [])
 
+  /** Called when a round couldn't start (< MIN_PLAYERS). Rejoins the next selection window automatically. */
+  const requestAutoJoin = useCallback((s: number) => {
+    setStake(s)
+    setAutoJoin({ active: true, stake: s })
+    setSelectionEndsAt(null)
+    setLiveGameEndsAt(null)
+    setLiveGameStake(null)
+    setGameStartedAt(null)
+    setGameSequence([])
+    setCartelas([])
+    setCalledNumbers([])
+    setShowWinModal(false)
+    setWinningCartela(null)
+    setWinningDisplayName(null)
+    setWinnerIsCurrentUser(false)
+    setGameMode("lobby")
+  }, [])
+
+  const cancelAutoJoin = useCallback(() => {
+    setAutoJoin({ active: false, stake: 0 })
+    setAutoJoinSecondsLeft(0)
+  }, [])
+
+  // Auto-rejoin loop: while pending, watch the wall clock for the next selection
+  // window and drop the player back into it at the same stake.
+  useEffect(() => {
+    if (!autoJoin.active || gameMode !== "lobby") {
+      setAutoJoinSecondsLeft(0)
+      return
+    }
+    let timerId: ReturnType<typeof setTimeout> | undefined
+    let tickId: ReturnType<typeof setInterval> | undefined
+
+    const schedule = () => {
+      if (timerId) clearTimeout(timerId)
+      const now = Date.now()
+      const r = currentRound(now)
+      const start = (r.index + 1) * ROUND_MS
+      const delay = Math.max(0, start - now)
+      timerId = setTimeout(() => {
+        handlePlayClick(autoJoin.stake)
+      }, delay)
+    }
+
+    tickId = setInterval(() => {
+      const now = Date.now()
+      const r = currentRound(now)
+      const toNext = (r.index + 1) * ROUND_MS - now
+      setAutoJoinSecondsLeft(Math.max(0, Math.ceil(toNext / 1000)))
+    }, 1000)
+
+    schedule()
+    return () => {
+      if (timerId) clearTimeout(timerId)
+      if (tickId) clearInterval(tickId)
+    }
+  }, [autoJoin.active, autoJoin.stake, gameMode, handlePlayClick])
+
   const handleWatchGame = useCallback(() => {
     const round = currentRound()
+    // Watching is not the auto-rejoin path — stop waiting.
+    setAutoJoin({ active: false, stake: 0 })
+    setAutoJoinSecondsLeft(0)
     setSelectionEndsAt(null)
     setCartelas([])
     setActiveCartelaIndex(0)
@@ -429,6 +497,9 @@ export function useBingoGame() {
     selectionEndsAt,
     roundIndex,
     waitTimeLeft,
+    autoJoinActive: autoJoin.active,
+    autoJoinStake: autoJoin.stake,
+    autoJoinSecondsLeft,
 
     // Setters
     setActiveTab,
@@ -442,6 +513,8 @@ export function useBingoGame() {
     handleSelectCartelas,
     handleBackFromSelection,
     handleWatchGame,
+    requestAutoJoin,
+    cancelAutoJoin,
     handleCellClick,
     switchCartela,
     callNextNumber,

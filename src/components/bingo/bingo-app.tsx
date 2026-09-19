@@ -137,7 +137,7 @@ function BingoAppInner() {
         // Multiplayer gate: not enough players in this round.
         await releaseCartelas(selected);
         toast.error(t("toast.need_players"));
-        game.handleWatchGame();
+        game.requestAutoJoin(game.stake);
       } else if (low.includes("banned")) {
         toast.error(t("toast.suspended"));
         game.handleWatchGame();
@@ -376,6 +376,20 @@ function BingoAppInner() {
             {t("header.rules")}
           </button>
         </header>
+      )}
+
+      {game.autoJoinActive && (
+        <div className="mx-4 mt-2 mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-amber-400/30 bg-amber-400/10 text-amber-200 text-xs font-medium animate-pulse">
+          <span className="leading-snug">
+            {t("auto.join_waiting", { seconds: game.autoJoinSecondsLeft })}
+          </span>
+          <button
+            onClick={game.cancelAutoJoin}
+            className="shrink-0 text-amber-300/80 hover:text-amber-100 underline underline-offset-2"
+          >
+            {t("auto.cancel")}
+          </button>
+        </div>
       )}
 
       <AnimatePresence mode="wait">

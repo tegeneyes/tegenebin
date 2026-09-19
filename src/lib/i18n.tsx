@@ -191,6 +191,10 @@ const en: Dict = {
   "toast.suspended": "Your account is suspended. Contact support.",
   "toast.insufficient": "Insufficient balance — joining as a watcher.",
   "toast.need_players": "At least 2 players are required to start a game. Waiting for the next round.",
+
+  // Auto-rejoin waiting banner
+  "auto.join_waiting": "Waiting for a 2nd player — auto rejoining the next round in {seconds}s.",
+  "auto.cancel": "Cancel",
 }
 
 const am: Dict = {
@@ -367,6 +371,9 @@ const am: Dict = {
   "toast.suspended": "መለያዎ ታግዷል። ድጋፍን ያነጋግሩ።",
   "toast.insufficient": "በቂ ቀሪ ሂሳብ የለም — እንደ ተመልካች ነው የሚገቡት።",
   "toast.need_players": "ጨዋታ ለመጀመር ቢያንስ 2 ተጫዋቾች ያስፈልጋሉ። ለሚቀጥለው ዙር ይጠብቁ።",
+
+  "auto.join_waiting": "ለ2ኛ ተጫዋች በመጠባበቅ ላይ — በ{seconds} ሰከንድ ውስጥ ወደሚቀጥለው ዙር በመግባት ላይ።",
+  "auto.cancel": "ሰርዝ",
 }
 
 const dicts: Record<Lang, Dict> = { en, am }
