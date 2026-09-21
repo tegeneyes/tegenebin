@@ -234,19 +234,6 @@ export function CartelaSelectionScreen({
         </div>
       </div>
 
-      {/* Multiplayer player-count notice */}
-      <div className="px-4 pb-1 flex-shrink-0">
-        {livePlayers < MIN_PLAYERS ? (
-          <p className="text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-            ⏳ {t("sel.waiting_players", { n: Math.max(1, MIN_PLAYERS - livePlayers) })}
-          </p>
-        ) : (
-          <p className="text-bingo-green text-[10px] font-bold uppercase tracking-wider">
-            ✓ {livePlayers} {t("sel.players_ready")}
-          </p>
-        )}
-      </div>
-
       {/* Timer and Selection Status - Compact */}
       <div className="px-4 py-1 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -260,11 +247,7 @@ export function CartelaSelectionScreen({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
-          {waitLeft > 0 ? (
-            <span className="text-bingo-cyan text-xs font-medium">
-              ⏳ {t("sel.waiting")}
-            </span>
-          ) : (
+          {timeLeft > 0 && (
             <span className={cn(
               "font-mono text-base font-bold",
               timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
