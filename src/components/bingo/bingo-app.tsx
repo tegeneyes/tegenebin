@@ -149,6 +149,16 @@ function BingoAppInner() {
     }
   };
 
+  // Refresh the wallet whenever the player enters the lobby or the selection
+  // screen, so a top-up made in the wallet tab (or any balance change) shows
+  // up without having to close and reopen the app.
+  useEffect(() => {
+    if ((game.gameMode === "lobby" || game.gameMode === "selecting") && tg) {
+      refreshWallet();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.gameMode, tg?.id]);
+
   const releaseCartelas = async (cartelas: Cartela[]) => {
     if (!tg) return;
     for (const c of cartelas) {
