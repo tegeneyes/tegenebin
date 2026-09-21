@@ -177,6 +177,7 @@ export function useBingoGame(telegramId?: number) {
     setGameStartedAt(nextRound.callingStartsAt)
     setLiveGameEndsAt(nextRound.callingEndsAt)
     setLiveGameStake(s)
+    setGameSequence(shuffleNumbers(nextRound.index))
     setGameMode("selecting")
   }, [unlockAudio])
 
