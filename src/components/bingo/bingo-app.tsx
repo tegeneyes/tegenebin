@@ -503,8 +503,8 @@ function BingoAppInner() {
             gameStats={{
               ...game.gameStats,
               gameId: game.gameStats.gameId || `R-${game.roundIndex}`,
-              players: roundCartelas.playerCount || Math.max(1, livePlayers),
-              derash: Math.round((roundCartelas.playerCount || Math.max(1, livePlayers)) * game.stake * 0.7),
+              players: game.gameStats.players || roundCartelas.playerCount,
+              derash: Math.round((game.gameStats.players || roundCartelas.playerCount) * game.stake * 0.7),
             }}
             automatic={game.automatic}
             soundEnabled={game.soundEnabled}
