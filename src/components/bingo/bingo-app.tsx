@@ -268,6 +268,7 @@ function BingoAppInner() {
 
         await recordGame({
           data: {
+            round_index: game.roundIndex,
             stake: game.stake,
             called_numbers: game.calledNumbers,
             prize_pool: prizePool,

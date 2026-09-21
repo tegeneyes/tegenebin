@@ -46,6 +46,7 @@ export const startGame = createServerFn({ method: "POST" })
 
 export const finishGame = createServerFn({ method: "POST" })
   .inputValidator((d: {
+    round_index: number | string
     stake: number
     called_numbers: number[]
     prize_pool?: number
@@ -59,6 +60,7 @@ export const finishGame = createServerFn({ method: "POST" })
       payout?: number
     }>
   }) => z.object({
+    round_index: roundIndex("round_index", d.round_index),
     stake: z.number().positive(),
     called_numbers: z.array(z.number().int()).max(75),
     prize_pool: z.number().nonnegative().default(0),
@@ -70,6 +72,7 @@ export const finishGame = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
     const winnerTg = data.winner_telegram_id != null ? Number(data.winner_telegram_id) : null
     const { data: gameId, error } = await supabaseAdmin.rpc("finish_game", {
+      _round_index: data.round_index,
       _stake: data.stake,
       _called_numbers: data.called_numbers,
       _participants: data.participants.map(p => ({
