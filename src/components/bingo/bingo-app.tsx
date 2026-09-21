@@ -178,7 +178,20 @@ function BingoAppInner() {
       return;
     }
     try {
-      const res = await debitStake({ data: { telegram_id: tg.id, total_stake: totalStake, round_index: game.roundIndex, stake: game.stake } });
+      let res: Awaited<ReturnType<typeof debitStake>> | undefined;
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          res = await debitStake({ data: { telegram_id: tg.id, total_stake: totalStake, round_index: game.roundIndex, stake: game.stake } });
+          break;
+        } catch (e) {
+          lastError = e;
+          const msg = e instanceof Error ? e.message.toLowerCase() : "";
+          if (!msg.includes("need_players") || attempt === 3) throw e;
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      if (!res) throw lastError instanceof Error ? lastError : new Error("Failed to start game");
       game.setWallet({ mainBalance: res.balance, playBalance: res.balance });
       // Bonus is consumed first server-side; mirror it locally.
       setBonusBalance(b => Math.max(0, b - totalStake));
