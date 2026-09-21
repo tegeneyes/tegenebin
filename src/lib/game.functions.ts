@@ -118,6 +118,39 @@ export const finishGame = createServerFn({ method: "POST" })
   })
 
 /** Recent winners for the public home ticker (social proof). */
+export const getGameResult = createServerFn({ method: "POST" })
+  .inputValidator((d: { round_index: number | string; stake: number }) => ({
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().parse(d.stake),
+  }))
+  .handler(async ({ data: { round_index, stake } }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { data: game, error: gErr } = await supabaseAdmin
+      .from("games")
+      .select("*")
+      .eq("round_index" as never, round_index)
+      .eq("stake", stake)
+      .maybeSingle()
+    if (gErr || !game) return null
+    const { data: results, error: rErr } = await supabaseAdmin
+      .from("game_results")
+      .select("telegram_id, username, is_winner, payout")
+      .eq("game_id", game.id)
+    if (rErr) return null
+    const winner = results?.find(r => r.is_winner) ?? null
+    return {
+      id: game.id,
+      winnerTelegramId: game.winner_telegram_id,
+      winnerCartelaId: game.winner_cartela_id,
+      calledNumbers: game.called_numbers,
+      prizePool: game.prize_pool,
+      playerCount: game.player_count,
+      endedAt: game.ended_at,
+      winnerUsername: winner?.username ?? null,
+      status: game.status,
+    }
+  })
+
 export const getRecentWinners = createServerFn({ method: "POST" })
   .handler(async () => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")

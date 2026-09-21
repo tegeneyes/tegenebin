@@ -12,11 +12,12 @@ interface WinModalProps {
   timer: number
   onBackToLobby: () => void
   winnerName?: string
+  prize?: string
   autoCloseSeconds?: number
 }
 
-export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, autoCloseSeconds = 8 }: WinModalProps) {
-  const hasWinner = winningCartela !== null
+export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, prize, autoCloseSeconds = 8 }: WinModalProps) {
+  const hasWinner = winningCartela !== null || !!winnerName
   const cartelaNumber = winningCartela?.id || 410
   const card = winningCartela?.card || []
   const [countdown, setCountdown] = useState(autoCloseSeconds)
@@ -63,7 +64,7 @@ export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, a
               </>
             )}
 
-            {hasWinner && (
+            {hasWinner && winningCartela && (
             <div className="relative w-full mb-6 rounded-2xl p-[1.5px] bg-gradient-to-br from-bingo-gold via-amber-500 to-bingo-gold/40 shadow-[0_8px_24px_-8px_rgba(212,175,55,0.55)]">
               <div className="rounded-[14px] bg-gradient-to-br from-bingo-deep-purple to-[#1a0e2e] p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -115,6 +116,13 @@ export function WinModal({ visible, winningCartela, onBackToLobby, winnerName, a
                 </div>
               </div>
             </div>
+            )}
+
+            {hasWinner && prize && !winningCartela && (
+              <div className="w-full mb-6 rounded-2xl border border-bingo-gold/30 bg-bingo-gold/10 p-4 flex flex-col items-center">
+                <span className="text-[10px] font-black uppercase tracking-widest text-bingo-gold mb-1">Derash</span>
+                <span className="text-white font-mono text-3xl font-extrabold">{prize} <span className="text-xs text-gray-400">ETB</span></span>
+              </div>
             )}
 
             <div className="w-full bg-white/5 py-2 px-4 rounded-full border border-white/10 flex items-center justify-center gap-3 mb-6">

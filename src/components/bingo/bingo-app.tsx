@@ -8,8 +8,9 @@ import { useBingoGame, currentRound } from "@/hooks/use-bingo-game";
 import { useTelegramUser, isTelegramWebApp } from "@/hooks/use-telegram-user";
 import { useLobbyPresence } from "@/hooks/use-lobby-presence";
 import { useRoundCartelas } from "@/hooks/use-round-cartelas";
+import { supabase } from "@/integrations/supabase/client";
 import { ensurePlayer, getWallet } from "@/lib/wallet.functions";
-import { finishGame, startGame } from "@/lib/game.functions";
+import { finishGame, startGame, getGameResult } from "@/lib/game.functions";
 import { reserveCartela, releaseCartela, getRoundCartelas, getRoundPlayerCount } from "@/lib/cartela.functions";
 import { isAdminId } from "@/lib/admin";
 import type { Cartela } from "@/lib/bingo/types";
@@ -54,8 +55,8 @@ export function BingoApp() {
 
 function BingoAppInner() {
   const { t } = useI18n();
-  const game = useBingoGame();
   const tg = useTelegramUser();
+  const game = useBingoGame(tg?.id);
   const gate = useTelegramGate();
   const ensure = useServerFn(ensurePlayer);
   const fetchWallet = useServerFn(getWallet);
@@ -88,6 +89,49 @@ function BingoAppInner() {
     telegramId: tg?.id,
     enabled: game.gameMode === "selecting" || game.gameMode === "playing" || game.gameMode === "watching",
   });
+
+  // Real-time finish broadcast: when ANY client records a game row for this
+  // round (early bingo < 20 calls, or a normal finish), everyone in the round —
+  // players AND watchers — converges on the result. This is what stops the
+  // calls for a winner that happened before the 20th number.
+  useEffect(() => {
+    if (game.gameMode !== "playing" && game.gameMode !== "watching") return;
+    if (game.roundIndex < 0 || game.stake <= 0) return;
+
+    const applyResult = async (round: number, basisStake: number) => {
+      try {
+        const res = await getGameResult({ data: { round_index: round, stake: basisStake } });
+        if (res) game.setGameResult(res);
+      } catch { /* realtime result polling is best-effort */ }
+    };
+
+    // If the game already finished before we subscribed (late join), catch up.
+    applyResult(game.roundIndex, game.stake);
+
+    // postgres_changes supports a single equality filter; stake is checked in
+    // the handler because both 10 ETB and 20 ETB rounds share the same index.
+    const channel = supabase
+      .channel(`games:${game.roundIndex}:${game.stake}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "games",
+          filter: `round_index=eq.${game.roundIndex}`,
+        },
+        (payload) => {
+          const row = payload.new as { stake?: number } | null;
+          if (row && Number(row.stake) === game.stake) {
+            applyResult(game.roundIndex, game.stake);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.gameMode, game.roundIndex, game.stake]);
 
   const [bonusBalance, setBonusBalance] = useState(0);
 
@@ -143,10 +187,11 @@ function BingoAppInner() {
       const msg = e instanceof Error ? e.message : "Failed to start game";
       const low = msg.toLowerCase();
       if (low.includes("need_players")) {
-        // Multiplayer gate: not enough players in this round.
+        // Multiplayer gate: not enough players in this round — hop into the
+        // next selection window so the player can reserve cartelas again.
         await releaseCartelas(selected);
         toast.error(t("toast.need_players"));
-        game.requestAutoJoin(game.stake);
+        game.joinNextSelection(game.stake);
       } else if (low.includes("banned")) {
         toast.error(t("toast.suspended"));
         game.handleWatchGame();
@@ -404,20 +449,6 @@ function BingoAppInner() {
         </header>
       )}
 
-      {game.autoJoinActive && (
-        <div className="mx-4 mt-2 mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-amber-400/30 bg-amber-400/10 text-amber-200 text-xs font-medium animate-pulse">
-          <span className="leading-snug">
-            {t("auto.join_waiting", { seconds: game.autoJoinSecondsLeft })}
-          </span>
-          <button
-            onClick={game.cancelAutoJoin}
-            className="shrink-0 text-amber-300/80 hover:text-amber-100 underline underline-offset-2"
-          >
-            {t("auto.cancel")}
-          </button>
-        </div>
-      )}
-
       <AnimatePresence mode="wait">
         {showHome && (
           <HomeScreen
@@ -504,6 +535,7 @@ function BingoAppInner() {
         visible={game.showWinModal}
         winningCartela={game.winningCartela}
         timer={game.timer}
+        prize={game.gameResult?.winnerTelegramId != null && !game.winningCartela ? String(Math.round(game.gameResult.prizePool ?? 0)) : undefined}
         winnerName={game.winningDisplayName ?? (tg?.username ? `@${tg.username}` : tg?.first_name || "YOU")}
         onBackToLobby={game.closeWinAndReturnToLobby}
       />

@@ -46,7 +46,15 @@ function shuffleNumbers(seed = 0) {
   return arr
 }
 
-export function useBingoGame() {
+export type GameResult = {
+  winnerTelegramId: number | null
+  winnerCartelaId: number | null
+  winnerUsername: string | null
+  calledNumbers: number[]
+  prizePool: number
+} | null
+
+export function useBingoGame(telegramId?: number) {
   const [activeTab, setActiveTab] = useState<TabType>("game")
   const [gameMode, setGameMode] = useState<GameMode>("lobby")
   const [cartelas, setCartelas] = useState<Cartela[]>([])
@@ -72,8 +80,8 @@ export function useBingoGame() {
   const [gameSequence, setGameSequence] = useState<number[]>([])
   const [roundIndex, setRoundIndex] = useState(0)
   const [waitTimeLeft, setWaitTimeLeft] = useState(0)
-  const [autoJoin, setAutoJoin] = useState<{ active: boolean; stake: number }>({ active: false, stake: 0 })
-  const [autoJoinSecondsLeft, setAutoJoinSecondsLeft] = useState(0)
+  const [gameResult, setGameResult] = useState<GameResult>(null)
+  const appliedResultRef = useRef<string | null>(null)
   const audioUnlockedRef = useRef(false)
 
   const activeCard = cartelas[activeCartelaIndex]?.card || []
@@ -104,6 +112,8 @@ export function useBingoGame() {
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
+    setGameResult(null)
+    appliedResultRef.current = null
     setGameStats(prev => ({ ...prev, calledCount: 0, bet: nextStake }))
     setGameSequence(shuffleNumbers(round.index))
     setRoundIndex(round.index)
@@ -127,6 +137,8 @@ export function useBingoGame() {
       setWinningCartela(null)
       setWinningDisplayName(null)
       setWinnerIsCurrentUser(false)
+      setGameResult(null)
+      appliedResultRef.current = null
       setGameStats(prev => ({ ...prev, calledCount: 0, gameId: `R-${round.index}`, bet: nextStake, players: prev.players }))
       setGameSequence(shuffleNumbers(round.index))
       setRoundIndex(round.index)
@@ -144,8 +156,6 @@ export function useBingoGame() {
   const joinNextSelection = useCallback((s: number) => {
     unlockAudio()
     setStake(s)
-    setAutoJoin({ active: false, stake: 0 })
-    setAutoJoinSecondsLeft(0)
     setCartelas([])
     setActiveCartelaIndex(0)
     setCalledNumbers([])
@@ -153,6 +163,8 @@ export function useBingoGame() {
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
+    setGameResult(null)
+    appliedResultRef.current = null
     setGameStats(prev => ({ ...prev, calledCount: 0, bet: s }))
 
     const now = Date.now()
@@ -171,11 +183,10 @@ export function useBingoGame() {
   const handleSelectCartelas = useCallback((selected: Cartela[], players?: number) => {
     // Stake deduction is handled server-side by the caller (see BingoApp.handleConfirmCartelas)
     unlockAudio()
-    // A game actually started — stop any waiting auto-rejoin loop.
-    setAutoJoin({ active: false, stake: 0 })
-    setAutoJoinSecondsLeft(0)
     setCartelas(selected)
     setCalledNumbers([])
+    setGameResult(null)
+    appliedResultRef.current = null
     // `players` is the true round size returned by startGame's MIN_PLAYERS gate,
     // not the number of cartelas this user bought.
     const roundPlayers = players ?? selected.length
@@ -193,78 +204,13 @@ export function useBingoGame() {
 
 
   const handleBackFromSelection = useCallback(() => {
-    // Manual back-out cancels any pending auto-rejoin.
-    setAutoJoin({ active: false, stake: 0 })
+    // Manual back-out returns to the lobby.
     setSelectionStartsAt(null)
     setGameMode("lobby")
   }, [])
-
-  /** Called when a round couldn't start (< MIN_PLAYERS). Rejoins the next selection window automatically. */
-  const requestAutoJoin = useCallback((s: number) => {
-    setStake(s)
-    setAutoJoin({ active: true, stake: s })
-    setSelectionEndsAt(null)
-    setSelectionStartsAt(null)
-    setLiveGameEndsAt(null)
-    setLiveGameStake(null)
-    setGameStartedAt(null)
-    setGameSequence([])
-    setCartelas([])
-    setCalledNumbers([])
-    setShowWinModal(false)
-    setWinningCartela(null)
-    setWinningDisplayName(null)
-    setWinnerIsCurrentUser(false)
-    setGameMode("lobby")
-  }, [])
-
-  const cancelAutoJoin = useCallback(() => {
-    setAutoJoin({ active: false, stake: 0 })
-    setAutoJoinSecondsLeft(0)
-  }, [])
-
-  // Auto-rejoin loop: while pending, watch the wall clock for the next selection
-  // window and drop the player back into it at the same stake.
-  useEffect(() => {
-    if (!autoJoin.active || gameMode !== "lobby") {
-      setAutoJoinSecondsLeft(0)
-      return
-    }
-    let timerId: ReturnType<typeof setTimeout> | undefined
-    let tickId: ReturnType<typeof setInterval> | undefined
-
-    const schedule = () => {
-      if (timerId) clearTimeout(timerId)
-      const now = Date.now()
-      const r = currentRound(now, autoJoin.stake)
-      const start = (r.index + 1) * ROUND_MS + (STAKE_OFFSETS[autoJoin.stake] ?? 0)
-      // Land 200ms past the boundary so currentRound() reports the NEW round's
-      // "selecting" phase instead of the just-ended calling phase.
-      const delay = Math.max(0, start - now + 200)
-      timerId = setTimeout(() => {
-        handlePlayClick(autoJoin.stake)
-      }, delay)
-    }
-
-    tickId = setInterval(() => {
-      const now = Date.now()
-      const r = currentRound(now, autoJoin.stake)
-      const toNext = (r.index + 1) * ROUND_MS + (STAKE_OFFSETS[autoJoin.stake] ?? 0) - now
-      setAutoJoinSecondsLeft(Math.max(0, Math.ceil(toNext / 1000)))
-    }, 1000)
-
-    schedule()
-    return () => {
-      if (timerId) clearTimeout(timerId)
-      if (tickId) clearInterval(tickId)
-    }
-  }, [autoJoin.active, autoJoin.stake, gameMode, handlePlayClick])
 
   const handleWatchGame = useCallback((players?: number) => {
     const round = currentRound(Date.now(), stake)
-    // Watching is not the auto-rejoin path — stop waiting.
-    setAutoJoin({ active: false, stake: 0 })
-    setAutoJoinSecondsLeft(0)
     setSelectionEndsAt(null)
     setSelectionStartsAt(null)
     setCartelas([])
@@ -274,6 +220,8 @@ export function useBingoGame() {
     setWinningCartela(null)
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
+    setGameResult(null)
+    appliedResultRef.current = null
     setGameStats(prev => ({ ...prev, calledCount: 0, gameId: prev.gameId || `R-${round.index}`, bet: stake, players: players ?? prev.players }))
     setGameSequence(shuffleNumbers(round.index))
     setRoundIndex(round.index)
@@ -294,6 +242,8 @@ export function useBingoGame() {
     setWinningCartela(null) // Reset winning cartela
     setWinningDisplayName(null)
     setWinnerIsCurrentUser(false)
+    setGameResult(null)
+    appliedResultRef.current = null
   }, [])
 
   const handleCellClick = useCallback(
@@ -377,6 +327,8 @@ export function useBingoGame() {
     setLiveGameStake(null)
     setGameStartedAt(null)
     setGameSequence([])
+    setGameResult(null)
+    appliedResultRef.current = null
     resetGameState()
   }, [resetGameState])
 
@@ -401,7 +353,10 @@ export function useBingoGame() {
 
     const sync = () => {
       const elapsed = Date.now() - gameStartedAt
-      const expected = Math.min(MAX_CALLS, Math.max(0, Math.floor(elapsed / CALL_INTERVAL_MS) + 1))
+      const cap = gameResult && gameResult.calledNumbers.length < MAX_CALLS
+        ? gameResult.calledNumbers.length
+        : MAX_CALLS
+      const expected = Math.min(cap, Math.max(0, Math.floor(elapsed / CALL_INTERVAL_MS) + 1))
       setCalledNumbers(prev => {
         if (expected <= prev.length) return prev
         // Latest number first
@@ -413,7 +368,7 @@ export function useBingoGame() {
     sync()
     const id = setInterval(sync, 500)
     return () => clearInterval(id)
-  }, [gameMode, showWinModal, gameStartedAt, gameSequence])
+  }, [gameMode, showWinModal, gameStartedAt, gameSequence, gameResult])
 
   // Auto-mark newly called numbers on player's cartelas while playing
   useEffect(() => {
@@ -448,22 +403,65 @@ export function useBingoGame() {
   }, [calledNumbers, gameMode, automatic])
 
   // If 20 calls pass with no player bingo, the round ends with no winner.
-  // Record the result (all players lose) and return to lobby.
+  // No result modal — just go back to the lobby.
   useEffect(() => {
     if (showWinModal || winningCartela) return
     if (gameMode !== "playing") return
     if (calledNumbers.length < MAX_CALLS) return
     if (cartelas.some((cartela) => cartelaWinsWithCalls(cartela, calledNumbers))) return
-    // No bingo — trigger win modal with no winner so the game records and returns to lobby
-    setWinningCartela(null)
-    setWinningDisplayName(null)
-    setWinnerIsCurrentUser(false)
+    // No bingo — clear the live game and return to lobby.
+    resetGameState()
+    setGameMode("lobby")
+    setLiveGameEndsAt(null)
+    setLiveGameStake(null)
+    setGameStartedAt(null)
+    setGameSequence([])
+  }, [calledNumbers, cartelaWinsWithCalls, cartelas, gameMode, showWinModal, winningCartela, resetGameState])
+
+  // Apply a game result received via realtime (broadcast finish).
+  // This stops the calling loop and opens the result modal for all participants.
+  useEffect(() => {
+    if (!gameResult) return
+    if (gameMode !== "playing" && gameMode !== "watching") return
+    const resultKey = `${gameResult.winnerTelegramId}-${gameResult.calledNumbers.length}-${gameResult.prizePool}`
+    if (appliedResultRef.current === resultKey) return
+    appliedResultRef.current = resultKey
+
+    // Clamp called numbers to the exact finish point.
+    setCalledNumbers(gameResult.calledNumbers)
+    setGameStats(prev => ({ ...prev, calledCount: gameResult.calledNumbers.length }))
+
+    if (gameResult.winnerTelegramId == null) {
+      // No winner — no result modal, straight back to the lobby.
+      appliedResultRef.current = resultKey
+      resetGameState()
+      setGameMode("lobby")
+      setLiveGameEndsAt(null)
+      setLiveGameStake(null)
+      setGameStartedAt(null)
+      setGameSequence([])
+      return
+    } else if (telegramId != null && gameResult.winnerTelegramId === telegramId) {
+      // Current user won — find their winning cartela
+      const own = cartelas.find(c => c.id === gameResult.winnerCartelaId)
+        ?? cartelas.find(c => cartelaWinsWithCalls(c, gameResult.calledNumbers))
+        ?? null
+      setWinningCartela(own)
+      setWinningDisplayName(null)
+      setWinnerIsCurrentUser(true)
+    } else {
+      // Someone else won — show their name, no card
+      setWinningCartela(null)
+      setWinningDisplayName(gameResult.winnerUsername ?? "Player")
+      setWinnerIsCurrentUser(false)
+    }
     setShowWinModal(true)
-  }, [calledNumbers, cartelaWinsWithCalls, cartelas, gameMode, showWinModal, winningCartela])
+  }, [gameResult, gameMode, telegramId, cartelas, cartelaWinsWithCalls])
 
   // Watching is read-only: when the round's calls finish, return to the lobby.
   useEffect(() => {
     if (gameMode !== "watching") return
+    if (showWinModal || gameResult) return
     if (!gameStartedAt) return
     const endsAt = gameStartedAt + CALLING_MS
     const tick = () => {
@@ -479,6 +477,7 @@ export function useBingoGame() {
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameMode, gameStartedAt])
 
   // Clear the live-game flag once the round finishes
@@ -558,9 +557,7 @@ export function useBingoGame() {
     selectionStartsAt,
     roundIndex,
     waitTimeLeft,
-    autoJoinActive: autoJoin.active,
-    autoJoinStake: autoJoin.stake,
-    autoJoinSecondsLeft,
+    gameResult,
 
     // Setters
     setActiveTab,
@@ -568,6 +565,7 @@ export function useBingoGame() {
     setSoundEnabled,
     setScoreFilter,
     setWallet,
+    setGameResult,
 
     // Actions
     handlePlayClick,
@@ -576,8 +574,6 @@ export function useBingoGame() {
     handleWatchGame,
     handlePlayClick,
     joinNextSelection,
-    requestAutoJoin,
-    cancelAutoJoin,
     handleCellClick,
     switchCartela,
     callNextNumber,
