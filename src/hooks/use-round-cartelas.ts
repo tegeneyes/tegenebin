@@ -22,6 +22,8 @@ export function useRoundCartelas(opts: {
   const [takenIds, setTakenIds] = useState<Set<number>>(new Set())
   const [playerIds, setPlayerIds] = useState<Set<number>>(new Set())
   const fetchedRef = useRef(false)
+  const roundIndexRef = useRef(roundIndex)
+  roundIndexRef.current = roundIndex
 
   // Fetch initial taken cartelas
   useEffect(() => {
@@ -86,8 +88,8 @@ export function useRoundCartelas(opts: {
               })
             }
           } else if (payload.eventType === "DELETE") {
-            const row = payload.old as RoundCartela
-            if (row.cartela_id) {
+            const row = payload.old as RoundCartela | null
+            if (row?.cartela_id) {
               setTakenIds(prev => {
                 const next = new Set(prev)
                 next.delete(row.cartela_id)
@@ -102,18 +104,24 @@ export function useRoundCartelas(opts: {
                 next.delete(row.telegram_id)
                 return next
               })
-              // Re-fetch to correct the count (handles multi-cartela players)
-              supabase.rpc("get_round_cartelas", {
-                _round_index: roundIndex,
-                _stake: stake,
-              } as never).then(({ data: rows }) => {
-                const players = new Set<number>()
-                for (const r of (rows ?? []) as RoundCartela[]) {
-                  players.add(r.telegram_id)
-                }
-                setPlayerIds(players)
-              }).catch(() => {})
             }
+            // Correct the full set (handles multi-cartela players, and keeps
+            // us in sync when a DELETE event lacks the old row, e.g. before
+            // REPLICA IDENTITY FULL is applied).
+            supabase.rpc("get_round_cartelas", {
+              _round_index: roundIndex,
+              _stake: stake,
+            } as never).then(({ data: rows }) => {
+              if (roundIndexRef.current !== roundIndex) return
+              const taken = new Set<number>()
+              const players = new Set<number>()
+              for (const r of (rows ?? []) as RoundCartela[]) {
+                taken.add(r.cartela_id)
+                players.add(r.telegram_id)
+              }
+              setTakenIds(taken)
+              setPlayerIds(players)
+            }).catch(() => {})
           }
         }
       )
