@@ -5,6 +5,7 @@ import { ArrowLeft, X } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import type { Cartela } from "@/lib/bingo/types"
+import type { RoundPlayer } from "@/hooks/use-round-cartelas"
 import { generateBingoCard } from "@/lib/bingo/logic"
 import { useI18n } from "@/lib/i18n"
 import { MIN_PLAYERS } from "@/lib/game.functions"
@@ -20,6 +21,7 @@ interface CartelaSelectionScreenProps {
   selectionEndsAt: number | null
   selectionStartsAt?: number | null
   livePlayers: number
+  joinedPlayers: RoundPlayer[]
   /** Returns true if a cartela ID is taken by another player in this round */
   isTakenByOthers?: (cartelaId: number) => boolean
   /** Called when user selects a cartela — should reserve it server-side */
@@ -55,6 +57,7 @@ export function CartelaSelectionScreen({
   selectionEndsAt,
   selectionStartsAt,
   livePlayers,
+  joinedPlayers,
   isTakenByOthers,
   onReserve,
   onRelease,
@@ -256,6 +259,24 @@ export function CartelaSelectionScreen({
             </span>
           )}
         </div>
+      </div>
+
+      <div className="mx-4 mb-1 rounded-lg border border-bingo-green/20 bg-bingo-green/5 px-3 py-2 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <p className="text-bingo-green text-[9px] uppercase font-bold tracking-wider">{t("sel.joined_players")}</p>
+          <span className="text-bingo-green font-mono text-[10px] font-bold">{livePlayers}</span>
+        </div>
+        {joinedPlayers.length > 0 ? (
+          <div className="mt-1 flex gap-1.5 overflow-x-auto custom-scrollbar">
+            {joinedPlayers.map((player) => (
+              <span key={player.telegram_id} className="shrink-0 rounded-md bg-white/5 px-1.5 py-1 text-[9px] text-white/80">
+                {player.username || `Player ${String(player.telegram_id).slice(-4)}`} · #{player.cartela_ids.join(", #")}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-1 text-[9px] text-white/40">{t("sel.no_players")}</p>
+        )}
       </div>
 
       {/* Available Cartelas Label */}

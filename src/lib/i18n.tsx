@@ -55,6 +55,8 @@ const en: Dict = {
   "sel.reserve_failed": "Could not reserve cartela. Try again.",
   "sel.waiting_players": "{n} more player needed to start",
   "sel.players_ready": "players ready",
+  "sel.joined_players": "Joined players",
+  "sel.no_players": "No players have joined yet",
 
   // Phone share
   "phone.welcome_named": "Welcome, {name}!",
@@ -248,6 +250,8 @@ const am: Dict = {
   "sel.reserve_failed": "ካርቴላ ማስመ札 አልተቻለም። እንደገና ይሞክሩ።",
   "sel.waiting_players": "ለመጀመር {n} ተጫዋች ተጨማሪ ያስፈልጋል",
   "sel.players_ready": "ተጫዋቾች ዝግጁ",
+  "sel.joined_players": "የተቀላቀሉ ተጫዋቾች",
+  "sel.no_players": "እስካሁን ማንም አልተቀላቀለም",
 
   "phone.welcome_named": "እንኳን ደህና መጡ፣ {name}!",
   "phone.welcome": "እንኳን ደህና መጡ!",

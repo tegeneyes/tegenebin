@@ -55,7 +55,7 @@ export const Route = createFileRoute("/api/cron/bot-jobs")({
           // Fire only near a round boundary so each round gets at most one reminder
           // window; the per-player throttle prevents spam.
           if (secToNext <= 50) {
-            const { sendBotText, appUrl } = await import("@/lib/telegram-bot");
+            const { sendBotPhoto, appUrl } = await import("@/lib/telegram-bot");
             const since = new Date(now - REMINDER_THROTTLE_MS).toISOString();
             const { data: warm } = await supabaseAdmin
               .from("players")
@@ -69,13 +69,14 @@ export const Route = createFileRoute("/api/cron/bot-jobs")({
               `🎰 <b>አዲስ ዙር ሊጀምር ነው!</b>\n\n` +
               `⚡️ በልዩ ቢንጎ ይቀላቀሉ እና እውነተኛ የብር ሽልማት ያሸንፉ!\n\n` +
               `👇 ቢንጎ ጀምር ወደ ጨዋታው ይወስድዎታል`;
+            const reminderImage = `${appUrl()}/bot-welcome.jpg`;
             const replyMarkup = {
               inline_keyboard: [[{ text: "🎮 ቢንጎ ጀምር", web_app: { url: playUrl } }]],
             };
 
             for (const p of warm ?? []) {
               if (reminded >= MAX_REMINDERS) break;
-              await sendBotText(p.telegram_id, text, replyMarkup);
+              await sendBotPhoto(p.telegram_id, reminderImage, text, replyMarkup);
               await supabaseAdmin
                 .from("players")
                 .update({ last_bot_reminder_at: new Date().toISOString() })

@@ -36,6 +36,25 @@ export async function sendBotText(chatId: number | string, text: string, replyMa
   }
 }
 
+export async function sendBotPhoto(
+  chatId: number | string,
+  photo: string,
+  caption: string,
+  replyMarkup?: unknown,
+) {
+  try {
+    await botApi("sendPhoto", {
+      chat_id: chatId,
+      photo,
+      caption,
+      parse_mode: "HTML",
+      reply_markup: replyMarkup,
+    })
+  } catch {
+    /* best-effort */
+  }
+}
+
 export interface WinNotifData {
   winnerTg: number
   username?: string | null
