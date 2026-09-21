@@ -13,7 +13,6 @@ interface CartelaSelectionScreenProps {
   onBack: () => void
   onConfirm: (selected: Cartela[]) => void
   onWatch: () => void
-  onTopUp?: () => void
   onTopUp: () => void
   stake: number
   playBalance: number

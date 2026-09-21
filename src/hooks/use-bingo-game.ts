@@ -127,12 +127,12 @@ export function useBingoGame() {
       setWinningCartela(null)
       setWinningDisplayName(null)
       setWinnerIsCurrentUser(false)
-      setGameStats(prev => ({ ...prev, calledCount: 0, gameId: `R-${round.index}`, bet: stake, players: prev.players }))
+      setGameStats(prev => ({ ...prev, calledCount: 0, gameId: `R-${round.index}`, bet: nextStake, players: prev.players }))
       setGameSequence(shuffleNumbers(round.index))
       setRoundIndex(round.index)
       setGameStartedAt(round.callingStartsAt)
       setLiveGameEndsAt(round.callingEndsAt)
-      setLiveGameStake(stake)
+      setLiveGameStake(nextStake)
       setGameMode("playing")
     }
   }, [stake, unlockAudio])
@@ -182,10 +182,10 @@ export function useBingoGame() {
     setGameStats(prev => ({
       ...prev,
       calledCount: 0,
-      gameId: prev.gameId || `R-${currentRound().index}`,
+      gameId: prev.gameId || `R-${currentRound(Date.now(), stake).index}`,
       bet: stake,
       players: roundPlayers,
-      derash: Math.round(roundPlayers * stake * 1.8),
+      derash: Math.round(roundPlayers * stake * 0.7),
     }))
     setSelectionEndsAt(null)
     setGameMode("playing")
