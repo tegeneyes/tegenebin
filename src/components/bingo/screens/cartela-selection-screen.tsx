@@ -38,6 +38,12 @@ const generateAllCartelas = (): Cartela[] => {
   }))
 }
 
+const secondsUntil = (deadline: number | null | undefined) =>
+  Math.max(0, Math.ceil(((deadline ?? Date.now()) - Date.now()) / 1000))
+
+const secondsUntilStart = (start: number | null | undefined) =>
+  start ? Math.max(0, Math.ceil((start - Date.now()) / 1000)) : 0
+
 export function CartelaSelectionScreen({
   onBack,
   onConfirm,
@@ -56,13 +62,9 @@ export function CartelaSelectionScreen({
   const { t } = useI18n()
   const [allCartelas] = useState<Cartela[]>(() => generateAllCartelas())
   const [selectedCartelas, setSelectedCartelas] = useState<Cartela[]>([])
-  const getSecondsLeft = () => Math.max(0, Math.ceil(((selectionEndsAt ?? Date.now()) - Date.now()) / 1000))
-  const getWaitSeconds = () => {
-    if (!selectionStartsAt) return 0
-    return Math.max(0, Math.ceil((selectionStartsAt - Date.now()) / 1000))
-  }
-  const [timeLeft, setTimeLeft] = useState(() => getSecondsLeft())
-  const [waitLeft, setWaitLeft] = useState(() => getWaitSeconds())
+  const [localSelectionEndsAt, setLocalSelectionEndsAt] = useState(selectionEndsAt)
+  const [timeLeft, setTimeLeft] = useState(() => secondsUntil(localSelectionEndsAt))
+  const [waitLeft, setWaitLeft] = useState(() => secondsUntilStart(selectionStartsAt))
   const finishedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -78,23 +80,28 @@ export function CartelaSelectionScreen({
 
   useEffect(() => {
     finishedRef.current = false
+    setLocalSelectionEndsAt(selectionEndsAt)
   }, [selectionEndsAt])
 
   // Timer countdown follows the shared game deadline, so it does not reset when leaving and returning.
   useEffect(() => {
     const updateTimeLeft = () => {
-      const w = getWaitSeconds()
+      const w = secondsUntilStart(selectionStartsAt)
       setWaitLeft(w)
       // Only count down selection after the wait is over.
-      const nextTimeLeft = w > 0 ? 0 : getSecondsLeft()
+      const nextTimeLeft = w > 0 ? 0 : secondsUntil(localSelectionEndsAt)
       setTimeLeft(nextTimeLeft)
 
       // Don't finish while still waiting for the next round to start.
       if (w > 0) return
       if (nextTimeLeft > 0 || finishedRef.current) return
       finishedRef.current = true
-      if (selectedCartelas.length > 0) {
+      if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
+      } else if (selectedCartelas.length > 0) {
+        toast.info(t("toast.need_players"))
+        finishedRef.current = false
+        setLocalSelectionEndsAt(Date.now() + 30_000)
       } else {
         // No selection — go back to lobby (watching requires >= 2 players)
         onBack()
@@ -106,7 +113,7 @@ export function CartelaSelectionScreen({
     const timer = setInterval(updateTimeLeft, 250)
 
     return () => clearInterval(timer)
-  }, [selectionEndsAt, selectionStartsAt, selectedCartelas, onConfirm, onBack])
+  }, [localSelectionEndsAt, selectionStartsAt, selectedCartelas, livePlayers, onConfirm, onBack, t])
 
   const handleSelectCartela = async (cartela: Cartela) => {
     const taken = isTakenByOthers?.(cartela.id) ?? false
