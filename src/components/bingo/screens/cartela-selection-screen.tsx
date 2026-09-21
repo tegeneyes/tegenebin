@@ -96,15 +96,15 @@ export function CartelaSelectionScreen({
       if (w > 0) return
       if (nextTimeLeft > 0 || finishedRef.current) return
       finishedRef.current = true
+      // Start the game only when at least MIN_PLAYERS are committed. Otherwise
+      // keep this player in selection and restart a fresh 30s window (with a
+      // toast) until a second player joins — never bounce them to the lobby.
       if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
-      } else if (selectedCartelas.length > 0) {
+      } else {
         toast.info(t("toast.need_players"))
         finishedRef.current = false
         setLocalSelectionEndsAt(Date.now() + 30_000)
-      } else {
-        // No selection — go back to lobby (watching requires >= 2 players)
-        onBack()
       }
     }
 
@@ -151,6 +151,24 @@ export function CartelaSelectionScreen({
     try { await onRelease?.(id) } catch { /* best effort */ }
   }
 
+  // Leaving selection must release every server-side reservation, otherwise
+  // the cartelas stay "taken" and reappear as occupied on the next visit.
+  const releaseReservations = async () => {
+    for (const c of selectedCartelas) {
+      try { await onRelease?.(c.id) } catch { /* best effort */ }
+    }
+  }
+
+  const handleLeave = async () => {
+    await releaseReservations()
+    onBack()
+  }
+
+  const handleTopUp = async () => {
+    await releaseReservations()
+    onTopUp()
+  }
+
   const getCartelaStatus = (cartela: Cartela) => {
     const isSelectedByMe = selectedCartelas.some(c => c.id === cartela.id)
     const takenByOthers = isTakenByOthers?.(cartela.id) ?? false
@@ -191,7 +209,7 @@ export function CartelaSelectionScreen({
       {/* Header */}
       <header className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-white/10 flex-shrink-0">
         <button 
-          onClick={onBack}
+          onClick={handleLeave}
           className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
         >
           <ArrowLeft size={20} className="text-gray-300" />
@@ -378,7 +396,7 @@ export function CartelaSelectionScreen({
             <p className="text-bingo-red text-[11px] text-center font-bold">{t("sel.insufficient")}</p>
             <button
               type="button"
-              onClick={onTopUp}
+              onClick={handleTopUp}
               className="w-full py-2.5 rounded-xl bg-bingo-green text-bingo-deep-purple font-black text-xs uppercase tracking-wider"
             >
               {t("sel.topup")}

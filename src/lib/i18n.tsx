@@ -199,7 +199,7 @@ const en: Dict = {
   // App toasts
   "toast.suspended": "Your account is suspended. Contact support.",
   "toast.insufficient": "Insufficient balance — joining as a watcher.",
-  "toast.need_players": "More players are needed to start a game — waiting for the next round.",
+  "toast.need_players": "Waiting for players — you'll be started automatically when a second player joins.",
   "toast.invalid_state": "Something went wrong — please try selecting your cartelas again.",
 }
 
@@ -385,7 +385,7 @@ const am: Dict = {
 
   "toast.suspended": "መለያዎ ታግዷል። ድጋፍን ያነጋግሩ።",
   "toast.insufficient": "በቂ ቀሪ ሂሳብ የለም — እንደ ተመልካች ነው የሚገቡት።",
-  "toast.need_players": "ጨዋታ ለመጀመር ተጨማሪ ተጫዋቾች ያስፈልጋሉ። ለሚቀጥለው ዙር ይጠብቁ።",
+  "toast.need_players": "ተጫዋቾችን በመጠበቅ ላይ — ሁለተኛ ተጫዋች ሲገባ በራስ-ሰር ይጀምራል።",
   "toast.invalid_state": "የሆነ ችግር ተፈጠረ — እባክዎ ካርቴላዎን እንደገና ለመምረጥ ይሞክሩ።",
 }
 
