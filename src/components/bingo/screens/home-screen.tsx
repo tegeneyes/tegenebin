@@ -1,6 +1,6 @@
 "use client"
 
-import { Play, Eye, Megaphone, Users, Gift, Trophy } from "lucide-react"
+import { Play, Megaphone, Users, Gift, Trophy } from "lucide-react"
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useServerFn } from "@tanstack/react-start"
@@ -222,17 +222,7 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
             {t("home.play")} {selectedStake}
           </button>
 
-          {/* Watch */}
-          {onWatch && (
-            <button
-              onClick={onWatch}
-              className="w-full py-3 rounded-2xl flex items-center justify-center gap-2 font-sans font-bold text-sm tracking-[0.2em] uppercase text-white/80 bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] transition-colors"
-            >
-              <Eye size={16} />
-              {t("home.watch")}
-            </button>
-          )}
-        </motion.div>
+          </motion.div>
 
         {/* Footer line */}
         <p className="text-[9px] uppercase tracking-[0.4em] text-white/30 mt-3">
