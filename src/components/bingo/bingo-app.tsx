@@ -4,7 +4,7 @@ import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { useBingoGame } from "@/hooks/use-bingo-game";
+import { useBingoGame, currentRound } from "@/hooks/use-bingo-game";
 import { useTelegramUser, isTelegramWebApp } from "@/hooks/use-telegram-user";
 import { useLobbyPresence } from "@/hooks/use-lobby-presence";
 import { useRoundCartelas } from "@/hooks/use-round-cartelas";
@@ -421,7 +421,25 @@ function BingoAppInner() {
         {showHome && (
           <HomeScreen
             key="home"
-            onPlay={game.handlePlayClick}
+            onPlay={async (s) => {
+              // Only watch a live game (calling phase) if a real round is truly
+              // running with >= MIN_PLAYERS. Otherwise the wall-clock calling
+              // would replay numbers for a game that never started.
+              const round = currentRound(Date.now(), s)
+              if (round.phase === "calling") {
+                try {
+                  const count = await fetchPlayerCount({ data: { round_index: round.index, stake: s } })
+                  if (Number(count) < 2) {
+                    toast.info(t("toast.need_players"))
+                    game.requestAutoJoin(s)
+                    return
+                  }
+                } catch {
+                  // Fall through — let the normal flow decide.
+                }
+              }
+              game.handlePlayClick(s)
+            }}
             onWatch={() => toast.info(t("home.no_live"))}
             walletBalance={game.wallet.playBalance}
             bonusBalance={bonusBalance}

@@ -17,8 +17,8 @@ const ROUND_MS = SELECTION_MS + CALLING_MS
 // Continuous rounds on a shared wall-clock, so every player is in the same
 // phase: selection (30s) → 20 calls → selection → 20 calls …
 // Each stake gets its own offset so 10 ETB and 20 ETB games run independently.
-const STAKE_OFFSETS: Record<number, number> = { 10: 0, 20: ROUND_MS / 2 }
-function currentRound(now = Date.now(), stake = 10) {
+export const STAKE_OFFSETS: Record<number, number> = { 10: 0, 20: ROUND_MS / 2 }
+export function currentRound(now = Date.now(), stake = 10) {
   const offset = STAKE_OFFSETS[stake] ?? 0
   const adjusted = now - offset
   const index = Math.floor(adjusted / ROUND_MS)
@@ -207,7 +207,9 @@ export function useBingoGame() {
       const now = Date.now()
       const r = currentRound(now, autoJoin.stake)
       const start = (r.index + 1) * ROUND_MS + (STAKE_OFFSETS[autoJoin.stake] ?? 0)
-      const delay = Math.max(0, start - now)
+      // Land 200ms past the boundary so currentRound() reports the NEW round's
+      // "selecting" phase instead of the just-ended calling phase.
+      const delay = Math.max(0, start - now + 200)
       timerId = setTimeout(() => {
         handlePlayClick(autoJoin.stake)
       }, delay)
