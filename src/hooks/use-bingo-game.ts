@@ -137,6 +137,37 @@ export function useBingoGame() {
     }
   }, [stake, unlockAudio])
 
+  // Hop straight into the selection screen for the NEXT round during the
+  // calling phase, so the player can reserve cartelas right away. Reservations
+  // target the next round's index; when the selection window opens and >=2
+  // players are committed, the round starts. The wait timer shows on screen.
+  const joinNextSelection = useCallback((s: number) => {
+    unlockAudio()
+    setStake(s)
+    setAutoJoin({ active: false, stake: 0 })
+    setAutoJoinSecondsLeft(0)
+    setCartelas([])
+    setActiveCartelaIndex(0)
+    setCalledNumbers([])
+    setShowWinModal(false)
+    setWinningCartela(null)
+    setWinningDisplayName(null)
+    setWinnerIsCurrentUser(false)
+    setGameStats(prev => ({ ...prev, calledCount: 0, bet: s }))
+
+    const now = Date.now()
+    const round = currentRound(now, s)
+    const nextRoundStart = (round.index + 1) * ROUND_MS + (STAKE_OFFSETS[s] ?? 0)
+    const nextRound = currentRound(nextRoundStart, s)
+    setSelectionStartsAt(nextRoundStart)
+    setSelectionEndsAt(nextRound.selectingEndsAt)
+    setRoundIndex(nextRound.index)
+    setGameStartedAt(nextRound.callingStartsAt)
+    setLiveGameEndsAt(nextRound.callingEndsAt)
+    setLiveGameStake(s)
+    setGameMode("selecting")
+  }, [unlockAudio])
+
   const handleSelectCartelas = useCallback((selected: Cartela[], players?: number) => {
     // Stake deduction is handled server-side by the caller (see BingoApp.handleConfirmCartelas)
     unlockAudio()
@@ -543,6 +574,8 @@ export function useBingoGame() {
     handleSelectCartelas,
     handleBackFromSelection,
     handleWatchGame,
+    handlePlayClick,
+    joinNextSelection,
     requestAutoJoin,
     cancelAutoJoin,
     handleCellClick,

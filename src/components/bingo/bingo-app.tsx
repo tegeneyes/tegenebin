@@ -422,21 +422,22 @@ function BingoAppInner() {
           <HomeScreen
             key="home"
             onPlay={async (s) => {
-              // Only watch a live game (calling phase) if a real round is truly
-              // running with >= MIN_PLAYERS. Otherwise the wall-clock calling
-              // would replay numbers for a game that never started.
               const round = currentRound(Date.now(), s)
               if (round.phase === "calling") {
+                // A live game: watch it. Otherwise hop into selection for the
+                // next round so the player can reserve cartelas immediately —
+                // that's how other players see seats filling up.
                 try {
                   const count = await fetchPlayerCount({ data: { round_index: round.index, stake: s } })
-                  if (Number(count) < 2) {
-                    toast.info(t("toast.need_players"))
-                    game.requestAutoJoin(s)
+                  if (Number(count) >= 2) {
+                    game.handlePlayClick(s)
                     return
                   }
                 } catch {
-                  // Fall through — let the normal flow decide.
+                  /* fall through */
                 }
+                game.joinNextSelection(s)
+                return
               }
               game.handlePlayClick(s)
             }}
