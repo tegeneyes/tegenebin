@@ -480,12 +480,15 @@ function BingoAppInner() {
             onPlay={async (s) => {
               const round = currentRound(Date.now(), s)
               if (round.phase === "calling") {
-                // A live game: watch it. Otherwise hop into selection for the
-                // next round so the player can reserve cartelas immediately —
-                // that's how other players see seats filling up.
+                // Rejoin the round if a real game actually started (a `games`
+                // row exists). Reservation counts can't be trusted here — the
+                // leaving player released their own cartelas, so the count drops
+                // below MIN_PLAYERS even though the round is live. If no game
+                // ever started for this round, hop into the next selection so
+                // the player can reserve cartelas.
                 try {
-                  const count = await fetchPlayerCount({ data: { round_index: round.index, stake: s } })
-                  if (Number(count) >= 2) {
+                  const started = await getGameResult({ data: { round_index: round.index, stake: s } })
+                  if (started) {
                     game.handlePlayClick(s)
                     return
                   }
