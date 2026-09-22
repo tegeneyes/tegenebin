@@ -7,7 +7,7 @@ const CALL_INTERVAL_MS = 4000;
 const MAX_CALLS = 20;
 const ROUND_MS = SELECTION_MS + MAX_CALLS * CALL_INTERVAL_MS; // 110000
 
-const REMINDER_THROTTLE_MS = 45 * 60 * 1000; // max ~1 reminder per player / 45 min
+const REMINDER_THROTTLE_MS = 8 * 60 * 60 * 1000; // max ~3 reminders / player / day
 const MAX_REMINDERS = 300; // per cron run
 
 function deriveSecret(token: string) {
