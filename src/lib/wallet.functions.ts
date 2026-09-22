@@ -352,6 +352,20 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     return tx
   })
 
+export const claimDailyBonus = createServerFn({ method: "POST" })
+  .inputValidator((d: { telegram_id: string | number }) => ({
+    telegram_id: TelegramIdSchema.parse(d.telegram_id),
+  }))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { data: result, error } = await supabaseAdmin.rpc("claim_daily_bonus", {
+      _telegram_id: data.telegram_id,
+      _amount: 10,
+    })
+    if (error) throw new Error(error.message)
+    return result as { claimed: boolean; amount: number }
+  })
+
 export const redeemPromo = createServerFn({ method: "POST" })
   .inputValidator((d: { telegram_id: string | number; code: string }) => ({
     telegram_id: TelegramIdSchema.parse(d.telegram_id),

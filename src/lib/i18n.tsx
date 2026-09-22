@@ -206,6 +206,7 @@ const en: Dict = {
   "toast.insufficient": "Insufficient balance — joining as a watcher.",
   "toast.need_players": "Waiting for players — you'll be started automatically when a second player joins.",
   "toast.invalid_state": "Something went wrong — please try selecting your cartelas again.",
+  "toast.daily_bonus": "🎁 Daily play bonus: +{n} ETB added to your wallet!",
 }
 
 const am: Dict = {
@@ -397,6 +398,7 @@ const am: Dict = {
   "toast.insufficient": "በቂ ቀሪ ሂሳብ የለም — እንደ ተመልካች ነው የሚገቡት።",
   "toast.need_players": "ተጫዋቾችን በመጠበቅ ላይ — ሁለተኛ ተጫዋች ሲገባ በራስ-ሰር ይጀምራል።",
   "toast.invalid_state": "የሆነ ችግር ተፈጠረ — እባክዎ ካርቴላዎን እንደገና ለመምረጥ ይሞክሩ።",
+  "toast.daily_bonus": "🎁 የዕለታዊ ተጫወት ቦነስ፡ {n} ብር ወደ ቦርሳዎ ተጨምሯል!",
 }
 
 const dicts: Record<Lang, Dict> = { en, am }

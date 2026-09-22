@@ -9,7 +9,7 @@ import { useTelegramUser, isTelegramWebApp } from "@/hooks/use-telegram-user";
 import { useLobbyPresence } from "@/hooks/use-lobby-presence";
 import { useRoundCartelas } from "@/hooks/use-round-cartelas";
 import { supabase } from "@/integrations/supabase/client";
-import { ensurePlayer, getWallet } from "@/lib/wallet.functions";
+import { ensurePlayer, getWallet, claimDailyBonus } from "@/lib/wallet.functions";
 import { finishGame, startGame, getGameResult } from "@/lib/game.functions";
 import { reserveCartela, releaseCartela, getRoundCartelas, getRoundPlayerCount } from "@/lib/cartela.functions";
 import { isAdminId } from "@/lib/admin";
@@ -60,6 +60,7 @@ function BingoAppInner() {
   const gate = useTelegramGate();
   const ensure = useServerFn(ensurePlayer);
   const fetchWallet = useServerFn(getWallet);
+  const claimDaily = useServerFn(claimDailyBonus);
   const recordGame = useServerFn(finishGame);
   const debitStake = useServerFn(startGame);
   const doReserve = useServerFn(reserveCartela);
@@ -247,12 +248,26 @@ function BingoAppInner() {
           },
         });
         const w = await fetchWallet({ data: { telegram_id: tg.id } });
-        const p = w.player as { balance: number; bonus_balance: number; bonus_locked: number; phone_number: string | null } | null;
+        const p = w.player as { balance: number; bonus_balance: number; bonus_locked: number; phone_number: string | null; last_daily_bonus_at: string | null } | null;
         if (p) {
           game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
           setBonusBalance(Number(p.bonus_locked || 0));
         }
         setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id) || !!p?.phone_number);
+        // Daily engagement bonus: credit 10 ETB once per calendar day.
+        const today = new Date().toISOString().slice(0, 10);
+        const lastDaily = p?.last_daily_bonus_at ?? null;
+        if (!lastDaily || String(lastDaily).slice(0, 10) < today) {
+          try {
+            const r = await claimDaily({ data: { telegram_id: tg.id } });
+            if (r.claimed) {
+              toast.success(t("toast.daily_bonus", { n: r.amount }));
+              await refreshWallet();
+            }
+          } catch {
+            /* never block the app on the bonus */
+          }
+        }
       } catch (e) {
         console.error(e);
         reportError({ source: "wallet.load", message: (e as Error)?.message ?? "wallet load failed", detail: (e as Error)?.stack });

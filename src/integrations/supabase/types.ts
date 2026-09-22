@@ -222,6 +222,7 @@ export type Database = {
           bonus_required: number
           created_at: string
           first_name: string | null
+          last_daily_bonus_at: string | null
           phone_number: string | null
           photo_url: string | null
           referral_bonus_paid: boolean
@@ -241,6 +242,7 @@ export type Database = {
           bonus_required?: number
           created_at?: string
           first_name?: string | null
+          last_daily_bonus_at?: string | null
           phone_number?: string | null
           photo_url?: string | null
           referral_bonus_paid?: boolean
@@ -260,6 +262,7 @@ export type Database = {
           bonus_required?: number
           created_at?: string
           first_name?: string | null
+          last_daily_bonus_at?: string | null
           phone_number?: string | null
           photo_url?: string | null
           referral_bonus_paid?: boolean
@@ -460,6 +463,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_daily_bonus: {
+        Args: { _amount?: number; _telegram_id: number }
+        Returns: {
+          amount: number
+          claimed: boolean
+        }
+      }
       debit_stake: {
         Args: { _amount: number; _telegram_id: number }
         Returns: number
