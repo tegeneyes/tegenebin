@@ -66,6 +66,7 @@ export const Route = createFileRoute("/api/cron/bot-jobs")({
 
             const playUrl = `${appUrl()}?v=c2c05db`;
             const text =
+              `🔥🥇 ዛሬ አንድ ጨዋታ ቦነስ 10 ብር አለ! ገብተው እድሎን ይሞክሩ! 🎯\n\n` +
               `🎰 <b>አዲስ ዙር ሊጀምር ነው!</b>\n\n` +
               `⚡️ በልዩ ቢንጎ ይቀላቀሉ እና እውነተኛ የብር ሽልማት ያሸንፉ!\n\n` +
               `👇 ቢንጎ ጀምር ወደ ጨዋታው ይወስድዎታል`;
