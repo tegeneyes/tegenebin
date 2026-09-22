@@ -139,10 +139,10 @@ function BingoAppInner() {
     if (!tg) return;
     try {
       const w = await fetchWallet({ data: { telegram_id: tg.id } });
-      const p = w.player as { balance: number; bonus_balance: number } | null;
+      const p = w.player as { balance: number; bonus_balance: number; bonus_locked: number } | null;
       if (p) {
         game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
-        setBonusBalance(Number(p.bonus_balance || 0));
+        setBonusBalance(Number(p.bonus_locked || 0));
       }
     } catch (e) {
       console.error(e);
@@ -247,10 +247,10 @@ function BingoAppInner() {
           },
         });
         const w = await fetchWallet({ data: { telegram_id: tg.id } });
-        const p = w.player as { balance: number; bonus_balance: number; phone_number: string | null } | null;
+        const p = w.player as { balance: number; bonus_balance: number; bonus_locked: number; phone_number: string | null } | null;
         if (p) {
           game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
-          setBonusBalance(Number(p.bonus_balance || 0));
+          setBonusBalance(Number(p.bonus_locked || 0));
         }
         setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id) || !!p?.phone_number);
       } catch (e) {

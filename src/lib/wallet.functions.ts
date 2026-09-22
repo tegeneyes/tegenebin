@@ -313,12 +313,12 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       throw new Error("Please enter your CBE account name and account number.")
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
-    const { data: player } = await supabaseAdmin.from("players").select("balance, bonus_balance, banned").eq("telegram_id", data.telegram_id).maybeSingle()
+    const { data: player } = await supabaseAdmin.from("players").select("balance, bonus_locked, banned").eq("telegram_id", data.telegram_id).maybeSingle()
     if (!player) throw new Error("We couldn't find your wallet. Please reopen the app and try again.")
     if (player.banned) throw new Error("Your account is suspended. Contact support.")
-    // Bonus balance is for playing only: withdrawals may only cover funds the
-    // player deposited or won (real money), never the bonus portion.
-    const withdrawable = Math.max(0, Number(player.balance) - Number(player.bonus_balance ?? 0))
+    // Bonus balance stays locked until its 5x wagering requirement is met — it
+    // can be played with but not withdrawn.
+    const withdrawable = Math.max(0, Number(player.balance) - Number(player.bonus_locked ?? 0))
     if (withdrawable < data.amount) {
       throw new Error(`Bonus balance can only be used to play, not withdrawn. You can withdraw ${withdrawable.toFixed(2)} ETB.`)
     }

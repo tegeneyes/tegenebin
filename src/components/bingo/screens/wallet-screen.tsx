@@ -23,7 +23,7 @@ type Tx = {
   admin_note: string | null
   promo_code: string | null
 }
-type Player = { balance: number; bonus_balance: number } | null
+type Player = { balance: number; bonus_balance: number; bonus_locked: number; bonus_required: number } | null
 type DepositConfig = { telebirr: { phone: string; name: string }; cbe: { account_number: string; account_name: string }; auto_verify?: boolean }
 
 // Static deposit destinations so the info renders instantly (no fetch wait).
@@ -75,7 +75,8 @@ export function WalletScreen() {
   }, [getConfig])
 
   const balance = Number(player?.balance ?? 0)
-  const bonus = Number(player?.bonus_balance ?? 0)
+  const bonus = Number(player?.bonus_locked ?? 0)
+  const required = Number(player?.bonus_required ?? 0)
   const withdrawable = Math.max(0, balance - bonus)
 
   return (
@@ -92,7 +93,8 @@ export function WalletScreen() {
             <WalletIcon size={14} className="text-bingo-green" />
             <span className="text-[10px] font-black uppercase tracking-widest text-bingo-green">{t("wallet.main")}</span>
           </div>
-          <p className="text-white font-mono text-2xl font-extrabold">{balance.toFixed(0)} <span className="text-xs text-gray-500">ETB</span></p>
+          <p className="text-white font-mono text-2xl font-extrabold">{withdrawable.toFixed(0)} <span className="text-xs text-gray-500">ETB</span></p>
+          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">{t("profile.withdrawable")}</p>
         </div>
         <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-4">
           <div className="flex items-center gap-1.5 mb-2">
@@ -100,6 +102,7 @@ export function WalletScreen() {
             <span className="text-[10px] font-black uppercase tracking-widest text-bingo-accent">{t("wallet.bonus")}</span>
           </div>
           <p className="text-white font-mono text-2xl font-extrabold">{bonus.toFixed(0)} <span className="text-xs text-gray-500">ETB</span></p>
+          {bonus > 0 && <p className="text-[9px] text-bingo-accent font-bold uppercase tracking-wider mt-0.5">{t("wallet.locked")}</p>}
         </div>
       </div>
 
@@ -116,7 +119,7 @@ export function WalletScreen() {
         <div hidden={tab !== "deposit"}><DepositForm telegramId={tg?.id ?? null} onDone={refresh} onSuccess={() => setTab("history")} config={config} /></div>
         {tg && (
           <>
-            <div hidden={tab !== "withdraw"}><WithdrawForm telegramId={tg.id} balance={withdrawable} bonus={bonus} onDone={refresh} /></div>
+            <div hidden={tab !== "withdraw"}><WithdrawForm telegramId={tg.id} balance={withdrawable} bonus={bonus} required={required} onDone={refresh} /></div>
             <div hidden={tab !== "promo"}><PromoForm telegramId={tg.id} onDone={refresh} /></div>
           </>
         )}
@@ -315,7 +318,7 @@ function DepositForm({ telegramId, onDone, onSuccess, config }: { telegramId: nu
 }
 
 
-function WithdrawForm({ telegramId, balance, bonus, onDone }: { telegramId: number; balance: number; bonus: number; onDone: () => void }) {
+function WithdrawForm({ telegramId, balance, bonus, required, onDone }: { telegramId: number; balance: number; bonus: number; required: number; onDone: () => void }) {
   const { t } = useI18n()
   const [provider, setProvider] = useState<"telebirr" | "cbe">("telebirr")
   const [amount, setAmount] = useState("")
@@ -363,7 +366,7 @@ function WithdrawForm({ telegramId, balance, bonus, onDone }: { telegramId: numb
       </div>
 
       <p className="text-xs text-gray-400">{t("wallet.withdrawable")}: <span className="font-mono text-bingo-green font-bold">{balance.toFixed(0)} ETB</span></p>
-      {bonus > 0 && <p className="text-[10px] text-bingo-accent font-semibold">{t("wallet.bonus_play_only", { n: Math.round(bonus) })}</p>}
+      {bonus > 0 && <p className="text-[10px] text-bingo-accent font-semibold">{t("wallet.bonus_play_only", { n: Math.max(0, Math.round(required)) })}</p>}
 
       <Input label={t("wallet.amount_eth")} type="number" min={50} max={balance} value={amount} onChange={setAmount} required />
       {provider === "telebirr" ? (

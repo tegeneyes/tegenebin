@@ -218,6 +218,8 @@ export type Database = {
           banned_at: string | null
           banned_reason: string | null
           bonus_balance: number
+          bonus_locked: number
+          bonus_required: number
           created_at: string
           first_name: string | null
           phone_number: string | null
@@ -235,6 +237,8 @@ export type Database = {
           banned_at?: string | null
           banned_reason?: string | null
           bonus_balance?: number
+          bonus_locked?: number
+          bonus_required?: number
           created_at?: string
           first_name?: string | null
           phone_number?: string | null
@@ -252,6 +256,8 @@ export type Database = {
           banned_at?: string | null
           banned_reason?: string | null
           bonus_balance?: number
+          bonus_locked?: number
+          bonus_required?: number
           created_at?: string
           first_name?: string | null
           phone_number?: string | null
