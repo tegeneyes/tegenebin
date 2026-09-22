@@ -137,9 +137,9 @@ function BingoAppInner() {
   const [bonusBalance, setBonusBalance] = useState(0);
   const [dailyBonusDue, setDailyBonusDue] = useState(false);
 
-  const dailyBonusCheckedToday = (lastDaily: string | null) => {
+  const dailyBonusPending = (lastDaily: string | null) => {
     const today = new Date().toISOString().slice(0, 10);
-    return !!lastDaily && String(lastDaily).slice(0, 10) >= today;
+    return !lastDaily || String(lastDaily).slice(0, 10) < today;
   };
 
   const refreshWallet = async () => {
@@ -150,7 +150,7 @@ function BingoAppInner() {
       if (p) {
         game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
         setBonusBalance(Number(p.bonus_locked || 0));
-        setDailyBonusDue(!dailyBonusCheckedToday(p.last_daily_bonus_at ?? null));
+        setDailyBonusDue(dailyBonusPending(p.last_daily_bonus_at ?? null));
       }
     } catch (e) {
       console.error(e);
@@ -277,7 +277,7 @@ function BingoAppInner() {
         setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id) || !!p?.phone_number);
         // Daily engagement bonus: the gift is claimed once per calendar day by
         // tapping the claim card on Home (an active claim builds ownership).
-        setDailyBonusDue(!dailyBonusCheckedToday(p?.last_daily_bonus_at ?? null));
+        setDailyBonusDue(dailyBonusPending(p?.last_daily_bonus_at ?? null));
       } catch (e) {
         console.error(e);
         reportError({ source: "wallet.load", message: (e as Error)?.message ?? "wallet load failed", detail: (e as Error)?.stack });
