@@ -29,6 +29,9 @@ const en: Dict = {
   "home.no_live": "No live game right now. Please wait for the next round.",
   "home.bonus": "Bonus",
   "home.bonus_hint": "You have {n} ETB bonus locked — keep playing to unlock it for withdrawal!",
+  "home.daily_title": "Daily play bonus",
+  "home.daily_desc": "Our gift for your first game today — play with it!",
+  "home.daily_claim": "Claim +{n} ETB",
   "home.recent_winners": "Recent Winners",
   "home.winners_empty": "Be the first winner of the round!",
 
@@ -172,7 +175,7 @@ const en: Dict = {
   "wallet.tg_id": "TG ID",
   "wallet.available": "Available",
   "wallet.withdrawable": "Withdrawable",
-  "wallet.bonus_play_only": "Bonus is locked — wager {n} ETB more to unlock it for withdrawal.",
+  "wallet.bonus_play_only": "Just {n} ETB more to unlock it — top up to keep playing.",
   "wallet.amount_eth": "Amount (ETB)",
   "wallet.telebirr_phone": "TeleBirr phone (09xxxxxxxx)",
   "wallet.cbe_name": "CBE account name",
@@ -206,7 +209,7 @@ const en: Dict = {
   "toast.insufficient": "Insufficient balance — joining as a watcher.",
   "toast.need_players": "Waiting for players — you'll be started automatically when a second player joins.",
   "toast.invalid_state": "Something went wrong — please try selecting your cartelas again.",
-  "toast.daily_bonus": "🎁 Daily play bonus: +{n} ETB added to your wallet!",
+  "toast.daily_bonus": "🎁 Our gift for your first game today — +{n} ETB added!",
 }
 
 const am: Dict = {
@@ -229,6 +232,9 @@ const am: Dict = {
   "home.no_live": "አሁን ቀጥታ ጨዋታ የለም። ቀጣዩን ዙር ይጠብቁ።",
   "home.bonus": "ቦነስ",
   "home.bonus_hint": "{n} ብር ቦነስ ተቆልፏል — ቦነስዎን ለመክፈት መጫወትዎን ይቀጥሉ!",
+  "home.daily_title": "የዕለታዊ ተጫወት ቦነስ",
+  "home.daily_desc": "ዛሬ ለመጀመሪያ ጨዋታዎ የምንሰጠው ስጦታ — በእሱ ይጫወቱ!",
+  "home.daily_claim": "ይጠይቁ +{n} ብር",
   "home.recent_winners": "አዳዲስ አሸናፊዎች",
   "home.winners_empty": "የዙሩ የመጀመሪያ አሸናፊ ይሁኑ!",
 
@@ -365,7 +371,7 @@ const am: Dict = {
   "wallet.tg_id": "የቴሌግራም መለያ",
   "wallet.available": "ያለዎት",
   "wallet.withdrawable": "ለማውጣት የሚቻል",
-  "wallet.bonus_play_only": "ቦነስ ተቆልፏል — ለማውጣት ለመክፈት {n} ብር የበለጠ ውርርድ ያድርጉ።",
+  "wallet.bonus_play_only": "ለመክፈት {n} ብር ብቻ ቀርቷል — መጫወትዎን ለመቀጠል ቦርሳዎን ይሙሉ።",
   "wallet.amount_eth": "መጠን (ብር)",
   "wallet.telebirr_phone": "የቴሌብር ስልክ (09xxxxxxxx)",
   "wallet.cbe_name": "የCBE ሂሳብ ስም",
@@ -398,7 +404,7 @@ const am: Dict = {
   "toast.insufficient": "በቂ ቀሪ ሂሳብ የለም — እንደ ተመልካች ነው የሚገቡት።",
   "toast.need_players": "ተጫዋቾችን በመጠበቅ ላይ — ሁለተኛ ተጫዋች ሲገባ በራስ-ሰር ይጀምራል።",
   "toast.invalid_state": "የሆነ ችግር ተፈጠረ — እባክዎ ካርቴላዎን እንደገና ለመምረጥ ይሞክሩ።",
-  "toast.daily_bonus": "🎁 የዕለታዊ ተጫወት ቦነስ፡ {n} ብር ወደ ቦርሳዎ ተጨምሯል!",
+  "toast.daily_bonus": "🎁 ዛሬ ለመጀመሪያ ጨዋታዎ የምንሰጠው ስጦታ — {n} ብር ተጨምሯል!",
 }
 
 const dicts: Record<Lang, Dict> = { en, am }

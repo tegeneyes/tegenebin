@@ -135,16 +135,37 @@ function BingoAppInner() {
   }, [game.gameMode, game.roundIndex, game.stake]);
 
   const [bonusBalance, setBonusBalance] = useState(0);
+  const [dailyBonusDue, setDailyBonusDue] = useState(false);
+
+  const dailyBonusCheckedToday = (lastDaily: string | null) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return !!lastDaily && String(lastDaily).slice(0, 10) >= today;
+  };
 
   const refreshWallet = async () => {
     if (!tg) return;
     try {
       const w = await fetchWallet({ data: { telegram_id: tg.id } });
-      const p = w.player as { balance: number; bonus_balance: number; bonus_locked: number } | null;
+      const p = w.player as { balance: number; bonus_balance: number; bonus_locked: number; last_daily_bonus_at: string | null } | null;
       if (p) {
         game.setWallet({ mainBalance: Number(p.balance), playBalance: Number(p.balance) });
         setBonusBalance(Number(p.bonus_locked || 0));
+        setDailyBonusDue(!dailyBonusCheckedToday(p.last_daily_bonus_at ?? null));
       }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClaimDaily = async () => {
+    if (!tg) return;
+    try {
+      const r = await claimDaily({ data: { telegram_id: tg.id } });
+      if (r.claimed) {
+        toast.success(t("toast.daily_bonus", { n: r.amount }));
+      }
+      setDailyBonusDue(false);
+      await refreshWallet();
     } catch (e) {
       console.error(e);
     }
@@ -254,20 +275,9 @@ function BingoAppInner() {
           setBonusBalance(Number(p.bonus_locked || 0));
         }
         setHasPhone((current) => current || hasDevPhoneBypass() || isAdminId(tg.id) || !!p?.phone_number);
-        // Daily engagement bonus: credit 10 ETB once per calendar day.
-        const today = new Date().toISOString().slice(0, 10);
-        const lastDaily = p?.last_daily_bonus_at ?? null;
-        if (!lastDaily || String(lastDaily).slice(0, 10) < today) {
-          try {
-            const r = await claimDaily({ data: { telegram_id: tg.id } });
-            if (r.claimed) {
-              toast.success(t("toast.daily_bonus", { n: r.amount }));
-              await refreshWallet();
-            }
-          } catch {
-            /* never block the app on the bonus */
-          }
-        }
+        // Daily engagement bonus: the gift is claimed once per calendar day by
+        // tapping the claim card on Home (an active claim builds ownership).
+        setDailyBonusDue(!dailyBonusCheckedToday(p?.last_daily_bonus_at ?? null));
       } catch (e) {
         console.error(e);
         reportError({ source: "wallet.load", message: (e as Error)?.message ?? "wallet load failed", detail: (e as Error)?.stack });
@@ -516,6 +526,8 @@ function BingoAppInner() {
               game.handlePlayClick(s)
             }}
             onWatch={() => toast.info(t("home.no_live"))}
+            dailyBonusDue={dailyBonusDue}
+            onClaimDaily={handleClaimDaily}
             walletBalance={game.wallet.playBalance}
             bonusBalance={bonusBalance}
           />

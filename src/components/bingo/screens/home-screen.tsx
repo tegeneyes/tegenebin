@@ -18,12 +18,15 @@ interface HomeScreenProps {
   onWatch?: () => void
   walletBalance?: number
   bonusBalance?: number
+  dailyBonusDue?: boolean
+  onClaimDaily?: () => Promise<void>
 }
 
 const STAKES = [10, 20, 50, 100] as const
 
-export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 0 }: HomeScreenProps) {
+export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 0, dailyBonusDue = false, onClaimDaily }: HomeScreenProps) {
   const [selectedStake, setSelectedStake] = useState<number>(10)
+  const [claiming, setClaiming] = useState(false)
   const [announcement, setAnnouncement] = useState<{ id: string; message: string } | null>(null)
   const [winners, setWinners] = useState<{ username: string; payout: number }[]>([])
   const fetchAnnouncement = useServerFn(getActiveAnnouncement)
@@ -162,6 +165,35 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
             <p className="text-[12px] leading-snug text-white/90 font-semibold">
               {t("home.bonus_hint", { n: Math.round(bonusBalance) })}
             </p>
+          </motion.div>
+        )}
+
+        {/* Daily gift — one active claim per day builds ownership */}
+        {dailyBonusDue && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.05 }}
+            className="relative w-full max-w-md mb-3 rounded-xl border border-bingo-accent/40 bg-gradient-to-r from-bingo-accent/15 to-bingo-green/10 px-3 py-2.5 flex items-center gap-3"
+          >
+            <div className="shrink-0 w-9 h-9 rounded-lg bg-bingo-accent/20 border border-bingo-accent/40 flex items-center justify-center">
+              <Gift size={17} className="text-bingo-accent" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-display font-extrabold text-white uppercase tracking-wide">{t("home.daily_title")}</p>
+              <p className="text-[10px] text-white/70 leading-snug">{t("home.daily_desc")}</p>
+            </div>
+            <button
+              type="button"
+              disabled={claiming}
+              onClick={async () => {
+                setClaiming(true);
+                try { await onClaimDaily?.(); } finally { setClaiming(false); }
+              }}
+              className="shrink-0 rounded-lg bg-bingo-accent text-bingo-deep-purple text-[11px] font-black uppercase tracking-wider px-3 py-2 disabled:opacity-50"
+            >
+              {claiming ? "…" : t("home.daily_claim", { n: 10 })}
+            </button>
           </motion.div>
         )}
 
