@@ -76,6 +76,7 @@ export function WalletScreen() {
 
   const balance = Number(player?.balance ?? 0)
   const bonus = Number(player?.bonus_balance ?? 0)
+  const withdrawable = Math.max(0, balance - bonus)
 
   return (
     <ScreenWrapper screenKey="wallet">
@@ -115,7 +116,7 @@ export function WalletScreen() {
         <div hidden={tab !== "deposit"}><DepositForm telegramId={tg?.id ?? null} onDone={refresh} onSuccess={() => setTab("history")} config={config} /></div>
         {tg && (
           <>
-            <div hidden={tab !== "withdraw"}><WithdrawForm telegramId={tg.id} balance={balance} onDone={refresh} /></div>
+            <div hidden={tab !== "withdraw"}><WithdrawForm telegramId={tg.id} balance={withdrawable} bonus={bonus} onDone={refresh} /></div>
             <div hidden={tab !== "promo"}><PromoForm telegramId={tg.id} onDone={refresh} /></div>
           </>
         )}
@@ -314,7 +315,7 @@ function DepositForm({ telegramId, onDone, onSuccess, config }: { telegramId: nu
 }
 
 
-function WithdrawForm({ telegramId, balance, onDone }: { telegramId: number; balance: number; onDone: () => void }) {
+function WithdrawForm({ telegramId, balance, bonus, onDone }: { telegramId: number; balance: number; bonus: number; onDone: () => void }) {
   const { t } = useI18n()
   const [provider, setProvider] = useState<"telebirr" | "cbe">("telebirr")
   const [amount, setAmount] = useState("")
@@ -361,7 +362,8 @@ function WithdrawForm({ telegramId, balance, onDone }: { telegramId: number; bal
         ))}
       </div>
 
-      <p className="text-xs text-gray-400">{t("wallet.available")}: <span className="font-mono text-white">{balance.toFixed(0)} ETB</span></p>
+      <p className="text-xs text-gray-400">{t("wallet.withdrawable")}: <span className="font-mono text-bingo-green font-bold">{balance.toFixed(0)} ETB</span></p>
+      {bonus > 0 && <p className="text-[10px] text-bingo-accent font-semibold">{t("wallet.bonus_play_only", { n: Math.round(bonus) })}</p>}
 
       <Input label={t("wallet.amount_eth")} type="number" min={50} max={balance} value={amount} onChange={setAmount} required />
       {provider === "telebirr" ? (

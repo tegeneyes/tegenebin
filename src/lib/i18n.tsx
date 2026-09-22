@@ -170,6 +170,8 @@ const en: Dict = {
   // Wallet extras
   "wallet.tg_id": "TG ID",
   "wallet.available": "Available",
+  "wallet.withdrawable": "Withdrawable",
+  "wallet.bonus_play_only": "Bonus balance ({n} ETB) is for playing only and can't be withdrawn.",
   "wallet.amount_eth": "Amount (ETB)",
   "wallet.telebirr_phone": "TeleBirr phone (09xxxxxxxx)",
   "wallet.cbe_name": "CBE account name",
@@ -359,6 +361,8 @@ const am: Dict = {
 
   "wallet.tg_id": "የቴሌግራም መለያ",
   "wallet.available": "ያለዎት",
+  "wallet.withdrawable": "ለማውጣት የሚቻል",
+  "wallet.bonus_play_only": "የቦነስ መለያ ({n} ብር) ለመጫወት ብቻ ነው፣ ለማውጣት አይቻልም።",
   "wallet.amount_eth": "መጠን (ብር)",
   "wallet.telebirr_phone": "የቴሌብር ስልክ (09xxxxxxxx)",
   "wallet.cbe_name": "የCBE ሂሳብ ስም",

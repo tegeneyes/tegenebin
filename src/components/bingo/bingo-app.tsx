@@ -548,7 +548,7 @@ function BingoAppInner() {
             onLogout={game.logout}
             username={tg?.username || tg?.first_name || "Guest"}
             initial={(tg?.first_name || tg?.username || "G").charAt(0).toUpperCase()}
-            mainBalance={game.wallet.mainBalance}
+mainBalance={Math.max(0, game.wallet.mainBalance - bonusBalance)}
             playBalance={game.wallet.playBalance}
           />
         )}
