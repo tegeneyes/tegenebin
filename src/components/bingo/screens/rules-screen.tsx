@@ -123,14 +123,7 @@ function OverviewTab({ am }: { am: boolean }) {
         </ul>
       </div>
 
-      <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
-        <h3 className="text-white font-bold text-base mb-3">{am ? "የሽልማት ፑል (ደራሽ)" : "Prize Pool (Derash)"}</h3>
-        <p className="text-gray-300 text-sm leading-relaxed">
-          {am
-            ? "ደራሽ = ተጫዋቾች × ውርርድ × 70%። (30% የአገልግሎት ክፍያ ነው።) ደራሹ በጨዋታው ክፍለ ጊዜ በቀጥታ ይሰላል፤ ብዙ አሸናፊዎች ካሉ በእኩል ይከፋፈላል።"
-            : "Derash = players x stake x 70% (a 30% service fee applies). It is calculated live during the selection session and split equally between multiple winners."}
-        </p>
-      </div>
+
     </motion.div>
   );
 }
