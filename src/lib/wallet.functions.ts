@@ -17,18 +17,19 @@ export const ensurePlayer = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
-    const { data: existing } = await supabaseAdmin.from("players").select("*").eq("telegram_id", data.telegram_id).maybeSingle()
-    if (existing) return existing
     const referred_by = data.referred_by && data.referred_by !== data.telegram_id ? data.referred_by : null
-    const { data: created, error } = await supabaseAdmin.from("players").insert({
+    const { data: player, error } = await supabaseAdmin.from("players").upsert({
       telegram_id: data.telegram_id,
       first_name: data.first_name,
       username: data.username,
       photo_url: data.photo_url,
       referred_by,
+    }, {
+      onConflict: "telegram_id",
+      ignoreDuplicates: false,
     }).select().single()
     if (error) throw new Error(error.message)
-    return created
+    return player
   })
 
 export const getWallet = createServerFn({ method: "POST" })

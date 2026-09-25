@@ -114,7 +114,7 @@ export const finishGame = createServerFn({ method: "POST" })
       }
     }
 
-    return { game_id: gameId as string }
+    return { game_id: String(gameId) }
   })
 
 /** Recent winners for the public home ticker (social proof). */
