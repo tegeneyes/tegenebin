@@ -286,7 +286,14 @@ export function CartelaSelectionScreen({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
-          {displaySeconds > 0 ? (
+          {waitLeft > 0 ? (
+            // The wait until the next window opens can be up to 80s (the calling
+            // phase length). Never render it in the selection-timer slot: a bare
+            // number there reads as a broken 30s countdown.
+            <span className="text-bingo-cyan text-xs font-semibold">
+              {t("sel.next_round_in", { n: waitLeft })}
+            </span>
+          ) : displaySeconds > 0 ? (
             <span className={cn(
               "font-mono text-base font-bold",
               displaySeconds <= 5 ? "text-bingo-red" : "text-bingo-gold"
