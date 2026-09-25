@@ -259,7 +259,7 @@ export function CartelaSelectionScreen({
             </span>
           ) : (
             <span className="text-bingo-yellow text-xs font-medium">
-              {t("sel.waiting_players")}
+              {t("sel.waiting_players", { n: Math.max(0, MIN_PLAYERS - livePlayers) })}
             </span>
           )}
         </div>
