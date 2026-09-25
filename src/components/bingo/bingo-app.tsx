@@ -466,6 +466,7 @@ function BingoAppInner() {
               cartela_id: cartelaId,
             }})
           } : undefined}
+          releaseLocally={roundCartelas.releaseLocally}
         />
       </div>
     );

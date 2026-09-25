@@ -177,5 +177,18 @@ export function useRoundCartelas(opts: {
 
   const isTaken = useCallback((cartelaId: number) => takenIds.has(cartelaId), [takenIds])
 
-  return { takenIds, isTaken, playerCount: playerIds.size, players }
+  const releaseLocally = useCallback((cartelaId: number) => {
+    setTakenIds(prev => {
+      const next = new Set(prev)
+      next.delete(cartelaId)
+      return next
+    })
+    setPlayerIds(prev => {
+      const next = new Set(prev)
+      // We don't know if player has other cartelas, but the refetch will correct
+      return next
+    })
+  }, [])
+
+  return { takenIds, isTaken, playerCount: playerIds.size, players, releaseLocally }
 }

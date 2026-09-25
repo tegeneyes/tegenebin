@@ -26,6 +26,8 @@ interface CartelaSelectionScreenProps {
   onReserve?: (cartelaId: number) => Promise<void>
   /** Called when user deselects a cartela — should release it server-side */
   onRelease?: (cartelaId: number) => Promise<void>
+  /** Optimistically remove a cartela from the taken set (for instant UI feedback) */
+  releaseLocally?: (cartelaId: number) => void
 }
 
 
@@ -58,6 +60,7 @@ export function CartelaSelectionScreen({
   isTakenByOthers,
   onReserve,
   onRelease,
+  releaseLocally,
 }: CartelaSelectionScreenProps) {
   const { t } = useI18n()
   const [allCartelas] = useState<Cartela[]>(() => generateAllCartelas())
@@ -122,9 +125,14 @@ export function CartelaSelectionScreen({
     const isSelected = selectedCartelas.some(c => c.id === cartela.id)
 
     if (isSelected) {
-      // Deselect — release server-side reservation
+      // Deselect — optimistic local release for instant feedback, then server release
       setSelectedCartelas(prev => prev.filter(c => c.id !== cartela.id))
-      try { await onRelease?.(cartela.id) } catch { /* best effort */ }
+      releaseLocally?.(cartela.id)
+      try {
+        await onRelease?.(cartela.id)
+      } catch (e) {
+        toast.error(t("sel.release_failed"))
+      }
     } else if (selectedCartelas.length < maxCartelas) {
       // Try to reserve server-side first
       if (onReserve) {
@@ -148,14 +156,24 @@ export function CartelaSelectionScreen({
 
   const handleUnselect = async (id: number) => {
     setSelectedCartelas(prev => prev.filter(c => c.id !== id))
-    try { await onRelease?.(id) } catch { /* best effort */ }
+    releaseLocally?.(id)
+    try {
+      await onRelease?.(id)
+    } catch (e) {
+      toast.error(t("sel.release_failed"))
+    }
   }
 
   // Leaving selection must release every server-side reservation, otherwise
   // the cartelas stay "taken" and reappear as occupied on the next visit.
   const releaseReservations = async () => {
     for (const c of selectedCartelas) {
-      try { await onRelease?.(c.id) } catch { /* best effort */ }
+      releaseLocally?.(c.id)
+      try {
+        await onRelease?.(c.id)
+      } catch (e) {
+        toast.error(t("sel.release_failed"))
+      }
     }
   }
 
