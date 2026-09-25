@@ -48,7 +48,7 @@ declare
   _telegram_id bigint;
 begin
   -- Extract telegram_id from JWT claims
-  _telegram_id := (current_setting('request.jwt.claims', true))::jsonb ->> 'sub')::bigint;
+  _telegram_id := ((current_setting('request.jwt.claims', true))::jsonb ->> 'sub')::bigint;
   
   insert into public.analytics_events (telegram_id, event_name, properties, session_id)
   values (_telegram_id, _event_name, _properties, _session_id);
