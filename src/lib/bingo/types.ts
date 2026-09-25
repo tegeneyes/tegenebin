@@ -19,6 +19,7 @@ export interface GameStats {
   bet: number
   derash: number
   calledCount: number
+  balance?: number
 }
 
 export interface RecentGame {

@@ -546,6 +546,7 @@ function BingoAppInner() {
               gameId: game.gameStats.gameId || `R-${game.roundIndex}`,
               players: game.gameStats.players || roundCartelas.playerCount,
               derash: Math.round((game.gameStats.players || roundCartelas.playerCount) * game.stake * 0.7),
+              balance: game.wallet.mainBalance,
             }}
             automatic={game.automatic}
             soundEnabled={game.soundEnabled}

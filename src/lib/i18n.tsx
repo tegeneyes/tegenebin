@@ -61,6 +61,12 @@ const en: Dict = {
   "sel.joined_players": "Joined players",
   "sel.no_players": "No players have joined yet",
 
+  // Game screen
+  "game.wallet": "Wallet",
+  "game.cartela": "Cartela {n} of {total} #{id}",
+  "game.leave": "LEAVE",
+  "game.refresh": "REFRESH",
+
   // Phone share
   "phone.welcome_named": "Welcome, {name}!",
   "phone.welcome": "Welcome!",
@@ -262,6 +268,12 @@ const am: Dict = {
   "sel.players_ready": "ተጫዋቾች ዝግጁ",
   "sel.joined_players": "የተቀላቀሉ ተጫዋቾች",
   "sel.no_players": "እስካሁን ማንም አልተቀላቀለም",
+
+  // Game screen
+  "game.wallet": "ቦርሳ",
+  "game.cartela": "ካርቴላ {n} ከ {total} #{id}",
+  "game.leave": "ውጣ",
+  "game.refresh": "ዳግመድ",
 
   "phone.welcome_named": "እንኳን ደህና መጡ፣ {name}!",
   "phone.welcome": "እንኳን ደህና መጡ!",
