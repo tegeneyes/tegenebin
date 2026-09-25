@@ -94,19 +94,32 @@ export function CartelaSelectionScreen({
       setWaitLeft(w)
       // Only count down selection after the wait is over.
       const nextTimeLeft = w > 0 ? 0 : secondsUntil(localSelectionEndsAt)
-      setTimeLeft(nextTimeLeft)
 
-      // Don't finish while still waiting for the next round to start.
-      if (w > 0) return
-      if (nextTimeLeft > 0 || finishedRef.current) return
+      // If we're in the waiting-for-next-round phase, show wait time and return
+      if (w > 0) {
+        setTimeLeft(0)
+        return
+      }
+
+      // If timer hasn't hit 0 yet, update display
+      if (nextTimeLeft > 0) {
+        setTimeLeft(nextTimeLeft)
+        return
+      }
+
+      // At 0s - check if we can start
+      if (finishedRef.current) return
       finishedRef.current = true
-      // Start the game only when at least MIN_PLAYERS are committed.
-      // Otherwise restart a fresh 30s window silently (no toast spam).
+
+      // Start the game only when at least MIN_PLAYERS are committed
       if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
       } else {
+        // Instantly restart to 30s without showing 0s flash
         finishedRef.current = false
         setLocalSelectionEndsAt(Date.now() + 30_000)
+        // Force immediate UI update to show 30s
+        setTimeLeft(30)
       }
     }
 
