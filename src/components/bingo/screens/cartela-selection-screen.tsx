@@ -216,7 +216,7 @@ export function CartelaSelectionScreen({
       return "bg-bingo-gold text-bingo-deep-purple border-amber-200"
     }
     if (isSelectedByOthers) {
-      return "bg-[#1a1530] text-[#4B5172] border-[#2a2548] line-through cursor-not-allowed opacity-60"
+      return "bg-red-600/80 text-white border-red-400 line-through cursor-not-allowed opacity-80"
     }
     // Flat solid color for available tiles — avoids per-frame gradient repaint while scrolling
     return "bg-violet-700 text-white border-violet-500/40 active:bg-violet-600"
