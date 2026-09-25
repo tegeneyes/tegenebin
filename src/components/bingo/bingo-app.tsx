@@ -529,7 +529,13 @@ function BingoAppInner() {
                 try {
                   const started = await getGameResult({ data: { round_index: round.index, stake: s } })
                   if (started) {
-                    game.handlePlayClick(s)
+                    // If user already has cartelas for this round, rejoin as player
+                    if (game.cartelas.length > 0) {
+                      game.handlePlayClick(s)
+                    } else {
+                      // No cartelas -> watch mode
+                      game.handleWatchGame()
+                    }
                     return
                   }
                 } catch {
