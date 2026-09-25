@@ -217,7 +217,10 @@ function BingoAppInner() {
       console.error("startGame received non-finite values:", detail);
       reportError({ source: "game.stake.guard", message: `client guard: ${detail}`, detail });
       toast.error(t("toast.invalid_state"));
-      game.handleWatchGame();
+      // Roll to the next selection window: the reservations for this round are
+      // unusable, and watching would show calls for a game this player is in.
+      await releaseCartelas(selected);
+      game.joinNextSelection(game.stake);
       return;
     }
     try {
@@ -254,7 +257,10 @@ function BingoAppInner() {
         game.handleWatchGame();
       } else if (low.includes("insufficient")) {
         toast.error(t("toast.insufficient"));
-        game.handleWatchGame();
+        // The player cannot join this round. Roll to the next selection window
+        // (where top-up is offered) instead of spectating an empty call.
+        await releaseCartelas(selected);
+        game.joinNextSelection(game.stake);
       } else {
         toast.error(msg);
         // Attach the exact client values so the next NaN/numeric error is attributable.
@@ -263,6 +269,11 @@ function BingoAppInner() {
           message: msg,
           detail: `values total_stake=${JSON.stringify(totalStake)} stake=${JSON.stringify(game.stake)} round_index=${JSON.stringify(game.roundIndex)} cartelas=${selected.length}\n` + ((e as Error)?.stack ?? ""),
         });
+        // The round is already spent (the selection window closed) and the timer
+        // on this screen is spent too, so move to the next window — otherwise the
+        // player is stranded on a dead selection screen until they leave.
+        await releaseCartelas(selected);
+        game.joinNextSelection(game.stake);
       }
     }
   };
@@ -457,6 +468,13 @@ function BingoAppInner() {
             game.handleWatchGame(players);
           }}
           onTopUp={() => { game.handleBackFromSelection(); game.setActiveTab("wallet"); }}
+          onRoundEnded={() => {
+            // The selection window closed without a second player, so this round
+            // never became a game. Re-target the screen at the next round's
+            // selection window instead of letting the wall clock call numbers
+            // for an empty game.
+            game.joinNextSelection(game.stake);
+          }}
           stake={game.stake}
           playBalance={game.wallet.playBalance}
           mainBalance={game.wallet.mainBalance}
@@ -520,23 +538,38 @@ function BingoAppInner() {
             onPlay={async (s) => {
               const round = currentRound(Date.now(), s)
               if (round.phase === "calling") {
-                // Calling phase is live — go directly to watching mode
-                // If user has cartelas, they'll rejoin as player; otherwise watch
+                // The wall clock forces a calling phase every round, but a round
+                // only becomes a real game once MIN_PLAYERS players have reserved
+                // cartelas. Check the live count before letting the user watch —
+                // otherwise they sit through 20 calls of an empty game.
+                let players = 0
+                try {
+                  players = await fetchPlayerCount({ data: { round_index: round.index, stake: s } })
+                } catch { /* treat as an empty round */ }
+
+                if (players < 2) {
+                  // Nobody is playing this round — jump to the next selection
+                  // window so the player can actually reserve a cartela.
+                  game.joinNextSelection(s)
+                  return
+                }
+
+                // A real game is live — rejoin as a player if we hold cartelas,
+                // otherwise spectate it.
                 try {
                   const started = await getGameResult({ data: { round_index: round.index, stake: s } })
                   if (started) {
                     if (game.cartelas.length > 0) {
                       game.handlePlayClick(s)
                     } else {
-                      game.handleWatchGame()
+                      game.handleWatchGame(players)
                     }
                     return
                   }
                 } catch {
                   /* fall through */
                 }
-                // No game started yet, but calling phase is active — go to watch mode
-                game.handleWatchGame()
+                game.handleWatchGame(players)
                 return
               }
               game.handlePlayClick(s)

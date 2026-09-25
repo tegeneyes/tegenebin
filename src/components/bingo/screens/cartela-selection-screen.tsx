@@ -15,6 +15,12 @@ interface CartelaSelectionScreenProps {
   onConfirm: (selected: Cartela[]) => void
   onWatch: () => void
   onTopUp: () => void
+  /**
+   * Called when the selection window closes without enough players to start a
+   * round. The parent rolls the screen to the next round's selection window.
+   * Reservations for the dead round are released before this fires.
+   */
+  onRoundEnded?: () => void
   stake: number
   playBalance: number
   mainBalance: number
@@ -52,6 +58,7 @@ export function CartelaSelectionScreen({
   onConfirm,
   onWatch,
   onTopUp,
+  onRoundEnded,
   stake,
   playBalance,
   mainBalance,
@@ -66,8 +73,7 @@ export function CartelaSelectionScreen({
   const { t } = useI18n()
   const [allCartelas] = useState<Cartela[]>(() => generateAllCartelas())
   const [selectedCartelas, setSelectedCartelas] = useState<Cartela[]>([])
-  const [localSelectionEndsAt, setLocalSelectionEndsAt] = useState(selectionEndsAt)
-  const [timeLeft, setTimeLeft] = useState(() => secondsUntil(localSelectionEndsAt))
+  const [timeLeft, setTimeLeft] = useState(() => secondsUntil(selectionEndsAt))
   const [waitLeft, setWaitLeft] = useState(() => secondsUntilStart(selectionStartsAt))
   const finishedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -82,10 +88,10 @@ export function CartelaSelectionScreen({
   // Live Derash = (players currently in this stake's lobby) × stake × 0.7 (30% house cut)
   const derash = Math.round(Math.max(livePlayers, 1) * stake * 0.7)
 
+  // A new round means a fresh deadline: re-arm the end-of-window check.
   useEffect(() => {
     finishedRef.current = false
-    setLocalSelectionEndsAt(selectionEndsAt)
-  }, [selectionEndsAt])
+  }, [selectionEndsAt, selectionStartsAt])
 
   // Timer countdown follows the shared game deadline, so it does not reset when leaving and returning.
   useEffect(() => {
@@ -93,7 +99,7 @@ export function CartelaSelectionScreen({
       const w = secondsUntilStart(selectionStartsAt)
       setWaitLeft(w)
       // Only count down selection after the wait is over.
-      const nextTimeLeft = w > 0 ? 0 : secondsUntil(localSelectionEndsAt)
+      const nextTimeLeft = w > 0 ? 0 : secondsUntil(selectionEndsAt)
 
       // If we're in the waiting-for-next-round phase, show wait time and return
       if (w > 0) {
@@ -107,26 +113,42 @@ export function CartelaSelectionScreen({
         return
       }
 
-      // At 1s or less - check if we can start, otherwise restart to 30s immediately
+      // At 1s or less - check if we can start, otherwise roll to the next round
       if (finishedRef.current) return
       finishedRef.current = true
 
       // Start the game only when at least MIN_PLAYERS are committed
       if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
-      } else {
-        // Instantly restart to 30s without ever showing 0s
-        finishedRef.current = false
-        setLocalSelectionEndsAt(Date.now() + 30_000)
-        setTimeLeft(30)
+        return
       }
+
+      // The round died with too few players. Keeping a local 30s restart here
+      // would strand this player on a dead round: the wall clock has already
+      // moved on, so no new player can ever join this round_index. Release the
+      // reservations (otherwise they linger as ghost players and occupy cartelas
+      // for rounds nobody can reach) and roll to the next selection window.
+      // finishedRef stays true so the interval cannot re-enter while we roll.
+      const orphaned = selectedCartelas
+      if (orphaned.length > 0) setSelectedCartelas([])
+      void (async () => {
+        for (const c of orphaned) {
+          releaseLocally?.(c.id)
+          try {
+            await onRelease?.(c.id)
+          } catch {
+            /* best effort — the cron cleanup reclaims anything left behind */
+          }
+        }
+        onRoundEnded?.()
+      })()
     }
 
     updateTimeLeft()
     const timer = setInterval(updateTimeLeft, 250)
 
     return () => clearInterval(timer)
-  }, [localSelectionEndsAt, selectionStartsAt, selectedCartelas, livePlayers, onConfirm, onBack, t])
+  }, [selectionEndsAt, selectionStartsAt, selectedCartelas, livePlayers, onConfirm, onBack, onRoundEnded, onRelease, releaseLocally, t])
 
   const handleSelectCartela = async (cartela: Cartela) => {
     const taken = isTakenByOthers?.(cartela.id) ?? false
