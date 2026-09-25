@@ -100,12 +100,12 @@ export function CartelaSelectionScreen({
       if (nextTimeLeft > 0 || finishedRef.current) return
       finishedRef.current = true
       // Start the game only when at least MIN_PLAYERS are committed.
-      // Otherwise hold at 0 and wait silently — no toast spam.
+      // Otherwise restart a fresh 30s window silently (no toast spam).
       if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
       } else {
-        // Hold at 0; the timer will stay at 0 until a second player joins.
-        // The effect re-runs when livePlayers changes, so it will auto-proceed.
+        finishedRef.current = false
+        setLocalSelectionEndsAt(Date.now() + 30_000)
       }
     }
 
