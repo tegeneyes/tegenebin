@@ -86,3 +86,21 @@ export const getRoundPlayerCount = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message)
     return Number(count) || 0
   })
+
+export const getMyCartelas = createServerFn({ method: "POST" })
+  .inputValidator((d: { round_index: number | string; stake: number; telegram_id: number | string }) => ({
+    round_index: roundIndex("round_index", d.round_index),
+    stake: z.number().positive().parse(finiteNumber("stake", d.stake)),
+    telegram_id: TelegramIdSchema.parse(d.telegram_id),
+  }))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
+    const { data: rows, error } = await supabaseAdmin
+      .from("round_cartelas")
+      .select("cartela_id")
+      .eq("round_index", data.round_index)
+      .eq("stake", data.stake)
+      .eq("telegram_id", data.telegram_id)
+    if (error) throw new Error(error.message)
+    return (rows ?? []).map(r => r.cartela_id)
+  })

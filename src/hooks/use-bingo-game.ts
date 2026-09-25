@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { BingoCell, GameStats, ScoreFilter, TabType, Cartela, GameMode } from "@/lib/bingo/types"
 import { INITIAL_GAME_STATS } from "@/lib/bingo/constants"
-import { checkBingo, cloneCard } from "@/lib/bingo/logic"
+import { checkBingo, cloneCard, generateBingoCard } from "@/lib/bingo/logic"
 import { voiceUrls } from "@/lib/bingo/voices"
+import { getMyCartelas } from "@/lib/cartela.functions"
 
 const WAIT_SECONDS = 15
 const SELECTION_SECONDS = 30
@@ -214,8 +215,6 @@ export function useBingoGame(telegramId?: number) {
     const round = currentRound(Date.now(), stake)
     setSelectionEndsAt(null)
     setSelectionStartsAt(null)
-    setCartelas([])
-    setActiveCartelaIndex(0)
     setCalledNumbers([])
     setShowWinModal(false)
     setWinningCartela(null)
@@ -230,7 +229,29 @@ export function useBingoGame(telegramId?: number) {
     setLiveGameEndsAt(round.callingEndsAt)
     setLiveGameStake(stake)
     setGameMode("watching")
-  }, [stake])
+
+    // Fetch user's cartelas for this round if in calling phase
+    if (telegramId) {
+      getMyCartelas({ data: { round_index: round.index, stake, telegram_id: telegramId } })
+        .then(res => {
+          if (res && res.length > 0) {
+            const cartelas = res.map(id => ({ id, card: generateBingoCard() }))
+            setCartelas(cartelas)
+            setActiveCartelaIndex(0)
+          } else {
+            setCartelas([])
+            setActiveCartelaIndex(0)
+          }
+        })
+        .catch(() => {
+          setCartelas([])
+          setActiveCartelaIndex(0)
+        })
+    } else {
+      setCartelas([])
+      setActiveCartelaIndex(0)
+    }
+  }, [stake, telegramId])
 
   const resetGameState = useCallback(() => {
     setCartelas([])
