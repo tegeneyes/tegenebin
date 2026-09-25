@@ -532,6 +532,10 @@ export type Database = {
         Args: { _code: string; _telegram_id: number }
         Returns: Json
       }
+      track_event: {
+        Args: { _event_name: string; _properties?: Json; _session_id?: string }
+        Returns: void
+      }
     }
     Enums: {
       [_ in never]: never

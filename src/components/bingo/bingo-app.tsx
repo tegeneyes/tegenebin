@@ -32,6 +32,7 @@ import { TelegramRequiredScreen } from "@/components/bingo/telegram-required-scr
 import { useTelegramGate } from "@/hooks/use-telegram-gate";
 import { installGlobalErrorHandlers, reportError } from "@/lib/error-log";
 import { I18nProvider, useI18n } from "@/lib/i18n";
+import { track, analytics, useAnalyticsInit } from "@/lib/analytics";
 
 function hasDevPhoneBypass() {
   if (typeof window === "undefined") return false;
@@ -137,6 +138,15 @@ function BingoAppInner() {
   const [bonusBalance, setBonusBalance] = useState(0);
   const [dailyBonusDue, setDailyBonusDue] = useState(false);
 
+  // Analytics init + session tracking
+  useAnalyticsInit()
+  useEffect(() => {
+    if (tg) {
+      analytics.miniAppOpen()
+      if (tg.start_param) analytics.botStart(tg.start_param)
+    }
+  }, [tg])
+
   const dailyBonusPending = (lastDaily: string | null) => {
     const today = new Date().toISOString().slice(0, 10);
     return !lastDaily || String(lastDaily).slice(0, 10) < today;
@@ -162,6 +172,7 @@ function BingoAppInner() {
     try {
       const r = await claimDaily({ data: { telegram_id: tg.id } });
       if (r.claimed) {
+        analytics.dailyBonusClaimed(r.amount)
         toast.success(t("toast.daily_bonus", { n: r.amount }));
       }
       setDailyBonusDue(false);
@@ -227,6 +238,7 @@ function BingoAppInner() {
       game.setWallet({ mainBalance: res.balance, playBalance: res.balance });
       // Bonus is consumed first server-side; mirror it locally.
       setBonusBalance(b => Math.max(0, b - totalStake));
+      analytics.roundJoined(game.roundIndex, game.stake, res.players)
       game.handleSelectCartelas(selected, res.players);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to start game";
@@ -370,6 +382,9 @@ function BingoAppInner() {
             participants,
           },
         })
+        if (isWinner) {
+          analytics.gameWin(game.stake, prizePool, game.cartelas.length)
+        }
         await refreshWallet()
       } catch (e) {
         console.error("record game failed", e);

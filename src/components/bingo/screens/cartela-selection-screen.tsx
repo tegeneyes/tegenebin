@@ -8,6 +8,7 @@ import type { Cartela } from "@/lib/bingo/types"
 import { generateBingoCard } from "@/lib/bingo/logic"
 import { useI18n } from "@/lib/i18n"
 import { MIN_PLAYERS } from "@/lib/game.functions"
+import { analytics } from "@/lib/analytics"
 
 interface CartelaSelectionScreenProps {
   onBack: () => void
@@ -146,6 +147,7 @@ export function CartelaSelectionScreen({
         }
       }
       setSelectedCartelas(prev => [...prev, cartela])
+      analytics.cartelaSelected(cartela.id, stake, selectedCartelas.length + 1)
     } else {
       toast.error(maxCartelas === 0 ? t("sel.insufficient") : t("sel.max_warn", { n: maxCartelas }))
     }

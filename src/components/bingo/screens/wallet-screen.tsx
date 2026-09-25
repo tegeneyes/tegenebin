@@ -11,6 +11,7 @@ import { TELEBIRR_PHONE, CBE_ACCOUNT, ACCOUNT_NAME } from "@/lib/payment-config"
 import { parseSms } from "@/lib/sms-parser"
 import { reportError } from "@/lib/error-log"
 import { useI18n } from "@/lib/i18n"
+import { analytics } from "@/lib/analytics"
 
 type Tab = "balance" | "deposit" | "withdraw" | "promo" | "history"
 type Tx = {
@@ -197,6 +198,7 @@ function DepositForm({ telegramId, onDone, onSuccess, config }: { telegramId: nu
     setError(null)
     if (!telegramId) { setError("Please reopen the app from Telegram."); return }
     if (!parsed?.matched) { setError(t("wallet.sms_required")); return }
+    analytics.depositInitiated(Number(amount), parsed.provider ?? provider)
     setSubmitting(true)
     try {
       const res: any = await submit({ data: {
@@ -207,12 +209,15 @@ function DepositForm({ telegramId, onDone, onSuccess, config }: { telegramId: nu
       }})
       setProofOpen(false)
       setVerified(!!res?.verified)
+      if (res?.verified) {
+        analytics.depositApproved(Number(amount), parsed.provider ?? provider, res?.tx_id ?? "")
+      }
       setSuccess(true)
       setAmount(""); setProof("")
       onDone()
     } catch (err) {
       setError((err as Error).message)
-      reportError({ source: "deposit", message: (err as Error)?.message ?? "deposit failed", detail: (err as Error)?.stack })
+      reportError({ source: "deposit", message: (err as Error).message ?? "deposit failed", detail: (err as Error)?.stack })
     } finally {
       setSubmitting(false)
     }
