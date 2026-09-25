@@ -25,44 +25,35 @@ export const startGame = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server")
 
-    // Multiplayer gate: refuse to start unless at least MIN_PLAYERS have committed
-    // cartelas for this round+stake. A lone player cannot start the game.
-    const { data: count, error: countError } = await supabaseAdmin.rpc("get_round_player_count", {
-      _round_index: data.round_index,
-      _stake: data.stake,
-    } as never)
-    if (countError) throw new Error(countError.message)
-    if (Number(count) < MIN_PLAYERS) throw new Error("need_players")
-
-    // Re-verify right before committing: ensure the initiating player still has
-    // at least one cartela reserved, and total players still >= MIN_PLAYERS.
-    const { data: reverifyCount, error: reverifyError } = await supabaseAdmin.rpc("get_round_player_count", {
-      _round_index: data.round_index,
-      _stake: data.stake,
-    } as never)
-    if (reverifyError) throw new Error(reverifyError.message)
-    if (Number(reverifyCount) < MIN_PLAYERS) throw new Error("need_players")
-
-    // Ensure the initiating player still has at least one cartela reserved
-    const { data: hasCartela, error: cartelaError } = await supabaseAdmin
+    // Direct query: get all cartelas for this round+stake and count distinct players
+    const { data: cartelas, error: cartelaError } = await supabaseAdmin
       .from("round_cartelas")
-      .select("telegram_id")
+      .select("telegram_id, cartela_id")
       .eq("round_index", data.round_index)
       .eq("stake", data.stake)
-      .eq("telegram_id", data.telegram_id)
-      .limit(1)
-      .maybeSingle()
     if (cartelaError) throw new Error(cartelaError.message)
+
+    // Count distinct players who actually have cartelas
+    const playerIds = new Set(cartelas?.map(c => c.telegram_id) || [])
+    const playerCount = playerIds.size
+
+    if (playerCount < MIN_PLAYERS) throw new Error("need_players")
+
+    // Ensure the initiating player still has at least one cartela reserved
+    const hasCartela = playerIds.has(data.telegram_id)
     if (!hasCartela) throw new Error("no_cartela")
+
+    // Double-check: exactly MIN_PLAYERS players (not more, not less)
+    // This prevents ghost players from stale cartela entries
+    if (playerCount !== MIN_PLAYERS) throw new Error("need_players")
 
     const { data: newBalance, error } = await supabaseAdmin.rpc("debit_stake", {
       _telegram_id: data.telegram_id,
       _amount: data.total_stake,
     } as never)
     if (error) throw new Error(error.message)
-    // The player count is the same value that passed the MIN_PLAYERS gate, so
-    // the client can display the true round size (not the user's own cartelas).
-    return { balance: Number(newBalance), players: Number(reverifyCount) }
+
+    return { balance: Number(newBalance), players: MIN_PLAYERS }
   })
 
 export const finishGame = createServerFn({ method: "POST" })
