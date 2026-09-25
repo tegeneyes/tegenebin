@@ -253,13 +253,9 @@ export function CartelaSelectionScreen({
             )}>
               {timeLeft}s
             </span>
-          ) : livePlayers >= MIN_PLAYERS ? (
-            <span className="text-bingo-green font-mono text-base font-bold">
-              {t("sel.starting")}
-            </span>
           ) : (
-            <span className="text-bingo-yellow text-xs font-medium">
-              {t("sel.waiting_players", { n: Math.max(0, MIN_PLAYERS - livePlayers) })}
+            <span className="text-bingo-green font-mono text-base font-bold">
+              0s
             </span>
           )}
         </div>
