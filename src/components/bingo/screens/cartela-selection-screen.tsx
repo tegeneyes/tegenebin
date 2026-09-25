@@ -99,18 +99,15 @@ export function CartelaSelectionScreen({
       if (w > 0) return
       if (nextTimeLeft > 0 || finishedRef.current) return
       finishedRef.current = true
-      // Start the game only when at least MIN_PLAYERS are committed. Otherwise
-      // keep this player in selection and restart a fresh 30s window (with a
-      // toast) until a second player joins — never bounce them to the lobby.
+      // Start the game only when at least MIN_PLAYERS are committed.
+      // Otherwise hold at 0 and wait silently — no toast spam.
       if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
       } else {
-        toast.info(t("toast.need_players"))
-        finishedRef.current = false
-        setLocalSelectionEndsAt(Date.now() + 30_000)
+        // Hold at 0; the timer will stay at 0 until a second player joins.
+        // The effect re-runs when livePlayers changes, so it will auto-proceed.
       }
     }
-
 
     updateTimeLeft()
     const timer = setInterval(updateTimeLeft, 250)
@@ -265,12 +262,20 @@ export function CartelaSelectionScreen({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
-          {timeLeft > 0 && (
+          {timeLeft > 0 ? (
             <span className={cn(
               "font-mono text-base font-bold",
               timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
             )}>
               {timeLeft}s
+            </span>
+          ) : livePlayers >= MIN_PLAYERS ? (
+            <span className="text-bingo-green font-mono text-base font-bold">
+              {t("sel.starting")}
+            </span>
+          ) : (
+            <span className="text-bingo-yellow text-xs font-medium">
+              {t("sel.waiting_players")}
             </span>
           )}
         </div>
