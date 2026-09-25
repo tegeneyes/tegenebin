@@ -101,13 +101,13 @@ export function CartelaSelectionScreen({
         return
       }
 
-      // If timer hasn't hit 0 yet, update display
-      if (nextTimeLeft > 0) {
+      // If timer hasn't hit 1s yet, update display
+      if (nextTimeLeft > 1) {
         setTimeLeft(nextTimeLeft)
         return
       }
 
-      // At 0s - check if we can start
+      // At 1s or less - check if we can start, otherwise restart to 30s immediately
       if (finishedRef.current) return
       finishedRef.current = true
 
@@ -115,10 +115,9 @@ export function CartelaSelectionScreen({
       if (selectedCartelas.length > 0 && livePlayers >= MIN_PLAYERS) {
         onConfirm(selectedCartelas)
       } else {
-        // Instantly restart to 30s without showing 0s flash
+        // Instantly restart to 30s without ever showing 0s
         finishedRef.current = false
         setLocalSelectionEndsAt(Date.now() + 30_000)
-        // Force immediate UI update to show 30s
         setTimeLeft(30)
       }
     }
