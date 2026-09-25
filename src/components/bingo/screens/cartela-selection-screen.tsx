@@ -85,6 +85,10 @@ export function CartelaSelectionScreen({
   const maxCartelas = Math.max(0, Math.min(MAX_CARTELAS, affordableCartelas))
   const totalCost = selectedCartelas.length * stake
   const canAfford = playBalance >= totalCost
+  // While waiting for the next round's window to open, timeLeft is 0 by
+  // definition (the update effect forces it), so rendering it showed a frozen
+  // "0s" that read like a stuck game. Surface the wait countdown instead.
+  const displaySeconds = waitLeft > 0 ? waitLeft : timeLeft
   // Live Derash = (players currently in this stake's lobby) × stake × 0.7 (30% house cut)
   const derash = Math.round(Math.max(livePlayers, 1) * stake * 0.7)
 
@@ -282,12 +286,12 @@ export function CartelaSelectionScreen({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">{t("sel.time")}:</span>
-          {timeLeft > 0 ? (
+          {displaySeconds > 0 ? (
             <span className={cn(
               "font-mono text-base font-bold",
-              timeLeft <= 5 ? "text-bingo-red" : "text-bingo-gold"
+              displaySeconds <= 5 ? "text-bingo-red" : "text-bingo-gold"
             )}>
-              {timeLeft}s
+              {displaySeconds}s
             </span>
           ) : (
             <span className="text-bingo-green font-mono text-base font-bold">
@@ -401,7 +405,7 @@ export function CartelaSelectionScreen({
             <span className="text-gray-400 text-[10px] uppercase tracking-wider">{t("sel.starts_in")}</span>
             {waitLeft > 0 ? (
               <span className="text-bingo-cyan text-xs font-medium">
-                ⏳ {t("sel.waiting")}
+                ⏳ {t("sel.waiting")} ({waitLeft}s)
               </span>
             ) : (
               <span className={cn(
