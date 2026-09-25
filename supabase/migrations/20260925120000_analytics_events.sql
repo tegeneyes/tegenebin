@@ -22,14 +22,14 @@ alter table public.analytics_events enable row level security;
 
 create policy "Users insert own events"
   on public.analytics_events for insert
-  with check (telegram_id = (current_setting('request.jwt.claims', true))::jsonb ->> 'sub')::bigint;
+  with check (telegram_id = ((current_setting('request.jwt.claims', true))::jsonb ->> 'sub')::bigint);
 
 create policy "Admins read all events"
   on public.analytics_events for select
   using (
     exists (
       select 1 from public.players
-      where telegram_id = (current_setting('request.jwt.claims', true))::jsonb ->> 'sub')::bigint
+      where telegram_id = ((current_setting('request.jwt.claims', true))::jsonb ->> 'sub')::bigint
       and is_admin = true
     )
   );
