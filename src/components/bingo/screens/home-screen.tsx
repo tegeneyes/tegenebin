@@ -153,21 +153,6 @@ export function HomeScreen({ onPlay, onWatch, walletBalance = 0, bonusBalance = 
           </div>
         </motion.div>
 
-        {/* Bonus hint — nudges users to actually use their free credit */}
-        {bonusBalance > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="relative w-full max-w-md mb-3 -mt-1 rounded-xl border border-bingo-green/40 bg-bingo-green/10 px-3 py-2 flex items-center gap-2.5"
-          >
-            <Gift size={15} className="text-bingo-green shrink-0" />
-            <p className="text-[12px] leading-snug text-white/90 font-semibold">
-              {t("home.bonus_hint", { n: Math.round(bonusBalance) })}
-            </p>
-          </motion.div>
-        )}
-
         {/* Daily gift — one active claim per day builds ownership */}
         {dailyBonusDue && (
           <motion.div

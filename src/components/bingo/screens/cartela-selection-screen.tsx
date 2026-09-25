@@ -233,22 +233,6 @@ export function CartelaSelectionScreen({
         <div className="w-10 h-10" aria-hidden="true" />
       </header>
 
-      {/* Wallet & Stake Info - Compact */}
-      <div className="px-4 py-2 grid grid-cols-3 gap-2 flex-shrink-0">
-        <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-          <p className="text-gray-400 text-[9px] uppercase font-bold">{t("sel.wallet")}</p>
-          <p className="text-white font-mono text-base font-bold">{mainBalance}</p>
-        </div>
-        <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-          <p className="text-gray-400 text-[9px] uppercase font-bold">{t("sel.stake")}</p>
-          <p className="text-bingo-gold font-mono text-base font-bold">{stake}</p>
-        </div>
-        <div className="bg-bingo-gold/10 rounded-lg p-2 border border-bingo-gold/30">
-          <p className="text-bingo-gold/80 text-[9px] uppercase font-bold">{t("sel.derash")}</p>
-          <p className="text-bingo-gold font-mono text-base font-bold">{derash}</p>
-        </div>
-      </div>
-
       {/* Timer and Selection Status - Compact */}
       <div className="px-4 py-1 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
