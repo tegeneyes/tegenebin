@@ -254,7 +254,11 @@ function BingoAppInner() {
         game.joinNextSelection(game.stake);
       } else if (low.includes("banned")) {
         toast.error(t("toast.suspended"));
-        game.handleWatchGame();
+        // Suspended players cannot reserve, so they have no business on a
+        // selection screen. Send them back to the lobby rather than into a
+        // calling phase for a round they are not part of.
+        await releaseCartelas(selected);
+        game.handleBackFromSelection();
       } else if (low.includes("insufficient")) {
         toast.error(t("toast.insufficient"));
         // The player cannot join this round. Roll to the next selection window
