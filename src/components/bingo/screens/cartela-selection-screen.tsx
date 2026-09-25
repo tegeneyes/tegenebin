@@ -308,6 +308,23 @@ export function CartelaSelectionScreen({
         </div>
       </div>
 
+      {/* While the next round's window is still closed the picker and the 30s
+          timer are both meaningless, and showing them made a dead round look
+          live. Swap in an explicit wait state; the effect below reveals the
+          picker again the moment waitLeft reaches 0. The screen stays mounted
+          so reserved cartelas (and the confirm that needs them) survive. */}
+      {waitLeft > 0 ? (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="font-mono text-5xl font-bold text-bingo-cyan leading-none tabular-nums">
+            {waitLeft}
+          </div>
+          <p className="text-sm font-semibold text-white">
+            {t("sel.next_round_in", { n: waitLeft })}
+          </p>
+          <p className="text-xs text-gray-400">{t("sel.waiting")}</p>
+        </div>
+      ) : (
+      <>
       {/* Available Cartelas Label */}
       <div className="px-4 py-1 flex-shrink-0">
         <p className="text-gray-400 text-[9px] uppercase font-bold">
@@ -343,6 +360,8 @@ export function CartelaSelectionScreen({
         </div>
 
       </div>
+      </>
+      )}
 
         </div>
 
