@@ -34,6 +34,27 @@ export const startGame = createServerFn({ method: "POST" })
     if (countError) throw new Error(countError.message)
     if (Number(count) < MIN_PLAYERS) throw new Error("need_players")
 
+    // Re-verify right before committing: ensure the initiating player still has
+    // at least one cartela reserved, and total players still >= MIN_PLAYERS.
+    const { data: reverifyCount, error: reverifyError } = await supabaseAdmin.rpc("get_round_player_count", {
+      _round_index: data.round_index,
+      _stake: data.stake,
+    } as never)
+    if (reverifyError) throw new Error(reverifyError.message)
+    if (Number(reverifyCount) < MIN_PLAYERS) throw new Error("need_players")
+
+    // Ensure the initiating player still has at least one cartela reserved
+    const { data: hasCartela, error: cartelaError } = await supabaseAdmin
+      .from("round_cartelas")
+      .select("telegram_id")
+      .eq("round_index", data.round_index)
+      .eq("stake", data.stake)
+      .eq("telegram_id", data.telegram_id)
+      .limit(1)
+      .maybeSingle()
+    if (cartelaError) throw new Error(cartelaError.message)
+    if (!hasCartela) throw new Error("no_cartela")
+
     const { data: newBalance, error } = await supabaseAdmin.rpc("debit_stake", {
       _telegram_id: data.telegram_id,
       _amount: data.total_stake,
@@ -41,7 +62,7 @@ export const startGame = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message)
     // The player count is the same value that passed the MIN_PLAYERS gate, so
     // the client can display the true round size (not the user's own cartelas).
-    return { balance: Number(newBalance), players: Number(count) }
+    return { balance: Number(newBalance), players: Number(reverifyCount) }
   })
 
 export const finishGame = createServerFn({ method: "POST" })
