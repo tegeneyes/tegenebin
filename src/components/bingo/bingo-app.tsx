@@ -520,20 +520,14 @@ function BingoAppInner() {
             onPlay={async (s) => {
               const round = currentRound(Date.now(), s)
               if (round.phase === "calling") {
-                // Rejoin the round if a real game actually started (a `games`
-                // row exists). Reservation counts can't be trusted here — the
-                // leaving player released their own cartelas, so the count drops
-                // below MIN_PLAYERS even though the round is live. If no game
-                // ever started for this round, hop into the next selection so
-                // the player can reserve cartelas.
+                // Calling phase is live — go directly to watching mode
+                // If user has cartelas, they'll rejoin as player; otherwise watch
                 try {
                   const started = await getGameResult({ data: { round_index: round.index, stake: s } })
                   if (started) {
-                    // If user already has cartelas for this round, rejoin as player
                     if (game.cartelas.length > 0) {
                       game.handlePlayClick(s)
                     } else {
-                      // No cartelas -> watch mode
                       game.handleWatchGame()
                     }
                     return
@@ -541,7 +535,8 @@ function BingoAppInner() {
                 } catch {
                   /* fall through */
                 }
-                game.joinNextSelection(s)
+                // No game started yet, but calling phase is active — go to watch mode
+                game.handleWatchGame()
                 return
               }
               game.handlePlayClick(s)
